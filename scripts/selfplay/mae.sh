@@ -7,7 +7,10 @@ export RAY_memory_monitor_refresh_ms=0
 export RAY_LOGGING_LEVEL=DEBUG
 export HYDRA_FULL_ERROR=1
 export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
-export NCCL_P2P_DISABLE=1
+export HF_HUB_OFFLINE=1
+export WANDB_MODE=offline
+export NCCL_NVLS_ENABLE=0
+# export NCCL_P2P_DISABLE=1
 
 python -m absolute_zero_reasoner.main_azr_ppo \
     --config-name=azr_ppo_trainer_general \
@@ -17,12 +20,12 @@ python -m absolute_zero_reasoner.main_azr_ppo \
     algorithm.adv_estimator=reinforce_plus_plus \
     data.train_files=data/code_reason/test_answer.parquet \
     data.val_files=data/code_reason/test_answer.parquet \
-    data.train_batch_size=128 \
+    data.train_batch_size=64 \
     data.val_batch_size=512 \
     data.max_prompt_length=8192 \
     data.max_validation_prompt_length=6144 \
     data.max_response_length=8192 \
-    actor_rollout_ref.model.path=Qwen/Qwen2.5-3B-Instruct \
+    actor_rollout_ref.model.path=/inspire/hdd/project/robot-reasoning/xuyue-p-xuyue/ziyu/.cache/huggingface/hub/models--Qwen--Qwen2.5-3B-Instruct \
     actor_rollout_ref.actor.optim.lr=1e-6 \
     actor_rollout_ref.model.use_remove_padding=True \
     actor_rollout_ref.actor.ppo_mini_batch_size=64 \
@@ -31,8 +34,8 @@ python -m absolute_zero_reasoner.main_azr_ppo \
     actor_rollout_ref.actor.ulysses_sequence_parallel_size=2 \
     actor_rollout_ref.model.enable_gradient_checkpointing=True \
     actor_rollout_ref.model.pretrained_tokenizer=True \
-    +actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=16 \
-    +actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=16 \
+    +actor_rollout_ref.ref.log_prob_micro_batch_size_per_gpu=32 \
+    +actor_rollout_ref.rollout.log_prob_micro_batch_size_per_gpu=32 \
     actor_rollout_ref.rollout.tensor_model_parallel_size=2 \
     actor_rollout_ref.rollout.name=vllm \
     actor_rollout_ref.rollout.max_num_batched_tokens=16384 \
@@ -40,10 +43,10 @@ python -m absolute_zero_reasoner.main_azr_ppo \
     actor_rollout_ref.rollout.enforce_eager=False \
     actor_rollout_ref.rollout.free_cache_engine=False \
     actor_rollout_ref.rollout.n=1 \
-    actor_rollout_ref.rollout.temperature=1.0 \
+    actor_rollout_ref.rollout.temperature=0.8 \
     actor_rollout_ref.ref.fsdp_config.param_offload=False \
     algorithm.kl_ctrl.kl_coef=0.0 \
-    trainer.default_local_dir=<path_to_your_root_run_directory>\
+    trainer.default_local_dir=/inspire/hdd/project/robot-reasoning/xuyue-p-xuyue/cy/Multi-agent-evolve/checkpoints \
     trainer.critic_warmup=0 \
     trainer.logger=['console','wandb'] \
     trainer.project_name='MAE' \
@@ -53,7 +56,7 @@ python -m absolute_zero_reasoner.main_azr_ppo \
     trainer.save_freq=50 \
     trainer.remove_previous_ckpt_in_save=False \
     trainer.del_local_ckpt_after_load=True \
-    trainer.test_freq=50 \
+    trainer.test_freq=500 \
     trainer.val_before_train=false \
     reward_fn.extraction_type=boxed \
     reward_fn.math_metric=deepscaler \
@@ -66,13 +69,13 @@ python -m absolute_zero_reasoner.main_azr_ppo \
     azr.data_selection_strategy.update_iteration=1 \
     azr.pretrain_pred_steps=-1 \
     azr.problem_types=['general'] \
-    azr.pred_data_mix_strategy=uniform_total \
-    azr.judge_data_mix_strategy=uniform_total \
+    azr.pred_data_mix_strategy=half_new \
+    azr.judge_data_mix_strategy=half_new \
     azr.train_judge=True \
     azr.train_solve=True \
     azr.with_answer_generation=False \
     azr.train_propose=True \
-    azr.reward.n_samples=5 \
+    azr.reward.n_samples=3 \
     azr.reward.generation_reward_config.format_reward=false \
     azr.reward.generation_reward_config.include_references=0.5 \
     azr.reward.generation_reward_config.generation_accuracy_convertion=inverse \

@@ -1724,12 +1724,14 @@ class GeneralIORewardManager:
 
                 if question:
                     difficulty_score = 1 - solver_avg_scores[i]
-                    final_score = llm_scores[i] / 3 + difficulty_score / 3 + format_rewards[i] / 3
+                    rep_penalty = data_dict.get('repetition_penalty', 0.0)
+                    final_score = llm_scores[i] / 3 + difficulty_score / 3 + format_rewards[i] / 3 + rep_penalty
                     
                     reward_tensor[i, valid_response_length - 1] = final_score
                     all_scores['llm_judge_score'].append(llm_scores[i])
                     all_scores['difficulty_score'].append(difficulty_score)
                     all_scores['format_reward'].append(format_rewards[i])
+                    all_scores['repetition_penalty'].append(rep_penalty)
                     all_scores['combined_score'].append(final_score)
                     if llm_scores[i] >= 0.7:
                         # Only add question to dataset if it is valid
@@ -1756,15 +1758,17 @@ class GeneralIORewardManager:
                             f.write(f"LLM Score: {llm_scores[i]}\n")
                             f.write("==============================================\n")
                             f.write("\n")
-                        reward_tensor[i, valid_response_length - 1] = llm_scores[i] / 3 + format_rewards[i] / 3
+                        reward_tensor[i, valid_response_length - 1] = llm_scores[i] / 3 + format_rewards[i] / 3 + rep_penalty
                         all_scores['difficulty_score'][-1] = 0
-                        all_scores['combined_score'][-1] = llm_scores[i] / 3 + format_rewards[i] / 3
+                        all_scores['repetition_penalty'][-1] = rep_penalty
+                        all_scores['combined_score'][-1] = llm_scores[i] / 3 + format_rewards[i] / 3 + rep_penalty
                 else:
                     print("Question format failed. Penalized and falling back")
                     reward_tensor[i, valid_response_length - 1] = 0.0
                     all_scores['llm_judge_score'].append(0.0)
                     all_scores['difficulty_score'].append(0.0)
                     all_scores['format_reward'].append(0.0)
+                    all_scores['repetition_penalty'].append(0.0)
                     all_scores['combined_score'].append(0.0)
 
             all_scores['solver_avg_scores'] = solver_avg_scores
