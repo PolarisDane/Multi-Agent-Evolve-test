@@ -184,8 +184,8 @@ class TaskRunner:
         trust_remote_code = config.data.get("trust_remote_code", False)
         tokenizer = hf_tokenizer(local_path, trust_remote_code=trust_remote_code)
 
-        if config.actor_rollout_ref.model.pretrained_tokenizer:
-            tokenizer.chat_template = "{%- for message in messages -%}{{- '\n' if not loop.first -}}{{- message['content'] -}}{%- endfor -%}"
+        # if config.actor_rollout_ref.model.pretrained_tokenizer:
+        #     tokenizer.chat_template = "{%- for message in messages -%}{{- '\n' if not loop.first -}}{{- message['content'] -}}{%- endfor -%}"
 
         processor = hf_processor(local_path, trust_remote_code=trust_remote_code, use_fast=True)
 

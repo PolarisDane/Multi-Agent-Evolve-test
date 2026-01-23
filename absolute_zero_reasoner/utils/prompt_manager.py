@@ -84,7 +84,7 @@ class PromptManager:
             return template.format(question)
         else:
             # If no placeholder, append question at the end
-            return f"{template}\n\nUser: {question}\nAssistant: "
+            return f"{template}\n\n{question}"
     
     def get_judge_instruction(self, prompt_type: str = "answer") -> str:
         """Get judge instruction for evaluation with specific type"""

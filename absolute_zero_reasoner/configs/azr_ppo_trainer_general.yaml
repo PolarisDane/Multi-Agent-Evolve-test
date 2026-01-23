@@ -193,7 +193,6 @@ actor_rollout_ref:
     do_sample: True
     # number of responses (i.e. num sample times)
     n: 1 # > 1 for grpo
-    repetition_penalty: 1.01
 
     multi_stage_wake_up: false
 
@@ -401,11 +400,11 @@ algorithm:
   gamma: 1.0
   lam: 0.95
   norm_adv_by_std_in_grpo: True
-  use_kl_in_reward: False
+  use_kl_in_reward: True
   kl_penalty: kl  # how to estimate kl divergence
   kl_ctrl:
     type: fixed
-    kl_coef: 0.0
+    kl_coef: 0.05
     horizon: 10000
     target_kl: 0.0
 
@@ -473,7 +472,7 @@ reward_fn:
   judge_with_actor: true
   extraction_type: boxed
   math_metric: deepscaler
-  splitter: "Assistant:"
+  splitter: "assistant\n"
   boxed_retry: False
   # LLM configuration for GeneralIORewardManager
   llm_model_name: "meta/llama-3.1-405b-instruct"

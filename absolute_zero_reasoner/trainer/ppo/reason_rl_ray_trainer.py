@@ -499,7 +499,7 @@ class ReasonRLRayPPOTrainer(RayPPOTrainer):
 
                             if question:
                                 # Combine template with question
-                                full_prompt = f"{self.template}\n\nUser: {question}\nAssistant: "
+                                full_prompt = f"{self.template}\n\n{question}"
 
                                 # Re-tokenize with the new prompt
                                 prompt_with_chat_template = self.tokenizer.apply_chat_template(
@@ -591,8 +591,8 @@ class ReasonRLRayPPOTrainer(RayPPOTrainer):
                     'eos_token_id': self.tokenizer.eos_token_id,
                     'pad_token_id': self.tokenizer.pad_token_id,
                     'recompute_log_prob': False,
-                    'do_sample': True,  # Use greedy decoding for evaluation
-                    'validate': False,
+                    'do_sample': False,  # Use greedy decoding for evaluation
+                    'validate': True,
                 }
                 
                 gen_batch_padded, pad_size = pad_dataproto_to_divisor(gen_batch, self.actor_rollout_wg.world_size)
@@ -848,8 +848,8 @@ class ReasonRLRayPPOTrainer(RayPPOTrainer):
         self._load_checkpoint()
 
         # base model chat template
-        if self.config.actor_rollout_ref.model.pretrained_tokenizer:
-            self.tokenizer.chat_template = "{%- for message in messages -%}{{- '\n' if not loop.first -}}{{- message['content'] -}}{%- endfor -%}"
+        # if self.config.actor_rollout_ref.model.pretrained_tokenizer:
+        #     self.tokenizer.chat_template = "{%- for message in messages -%}{{- '\n' if not loop.first -}}{{- message['content'] -}}{%- endfor -%}"
 
         # perform validation before training
         # currently, we only support validation using the reward_function.

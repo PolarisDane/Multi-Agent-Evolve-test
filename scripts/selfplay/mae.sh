@@ -43,7 +43,7 @@ python -m absolute_zero_reasoner.main_azr_ppo \
     actor_rollout_ref.rollout.enforce_eager=False \
     actor_rollout_ref.rollout.free_cache_engine=False \
     actor_rollout_ref.rollout.n=1 \
-    actor_rollout_ref.rollout.temperature=0.8 \
+    actor_rollout_ref.rollout.temperature=1.0 \
     actor_rollout_ref.ref.fsdp_config.param_offload=False \
     algorithm.kl_ctrl.kl_coef=0.0 \
     trainer.default_local_dir=/inspire/hdd/project/robot-reasoning/xuyue-p-xuyue/cy/Multi-agent-evolve/checkpoints \
@@ -70,7 +70,7 @@ python -m absolute_zero_reasoner.main_azr_ppo \
     azr.pretrain_pred_steps=-1 \
     azr.problem_types=['general'] \
     azr.pred_data_mix_strategy=half_new \
-    azr.judge_data_mix_strategy=half_new \
+    azr.judge_data_mix_strategy=uniform_total \
     azr.train_judge=True \
     azr.train_solve=True \
     azr.with_answer_generation=False \

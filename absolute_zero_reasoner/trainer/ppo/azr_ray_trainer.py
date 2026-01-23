@@ -1309,9 +1309,9 @@ class GeneralIORayPPOTrainer(ReasonRLRayPPOTrainer):
         # load checkpoint before doing anything
         self._load_checkpoint()
 
-        # base model chat template
-        if self.config.actor_rollout_ref.model.pretrained_tokenizer:
-            self.tokenizer.chat_template = "{%- for message in messages -%}{{- '\n' if not loop.first -}}{{- message['content'] -}}{%- endfor -%}"
+        # # base model chat template
+        # if self.config.actor_rollout_ref.model.pretrained_tokenizer:
+        #     self.tokenizer.chat_template = "{%- for message in messages -%}{{- '\n' if not loop.first -}}{{- message['content'] -}}{%- endfor -%}"
 
         # currently, we only support validation using the reward_function.
         if self.config.trainer.get('val_before_train', True) and (self.global_steps == 0 or self.config.trainer.get('val_only', False)):
