@@ -300,30 +300,66 @@ def evaluate_dataset(
         
         prompts.append(formatted_prompt)
     
+    # 判断是否为AIME数据集，需要采样多次
+    is_aime = data_name in ['aime24', 'aime25']
+    temperature = 0.6 if is_aime else 0.0
+    n_sampling = 64 if is_aime else 1
+    
     # 生成回答
-    print("Generating responses...")
-    outputs = llm.generate(
-        prompts,
-        SamplingParams(
-            temperature=0.0,
-            max_tokens=2048,
-            stop=["</answer>", "\n\nTask:", "<|im_end|>", "</s>", "<|im_start|>"]
-        ),
-        use_tqdm=True
-    )
+    print(f"Generating responses (temperature={temperature}, n_sampling={n_sampling})...")
+    
+    # 对于AIME数据集，每个问题需要采样64次
+    if is_aime:
+        # 重复每个prompt 64次
+        repeated_prompts = []
+        prompt_indices = []  # 记录每个prompt的原始索引
+        for i, prompt in enumerate(prompts):
+            for _ in range(n_sampling):
+                repeated_prompts.append(prompt)
+                prompt_indices.append(i)
+        
+        outputs = llm.generate(
+            repeated_prompts,
+            SamplingParams(
+                temperature=temperature,
+                max_tokens=2048,
+                stop=["</answer>", "\n\nTask:", "<|im_end|>", "</s>", "<|im_start|>"],
+                n=1
+            ),
+            use_tqdm=True
+        )
+        
+        # 按原始索引分组
+        grouped_outputs = {}
+        for idx, output in zip(prompt_indices, outputs):
+            if idx not in grouped_outputs:
+                grouped_outputs[idx] = []
+            grouped_outputs[idx].append(output.outputs[0].text)
+    else:
+        # 非AIME数据集，正常生成
+        outputs = llm.generate(
+            prompts,
+            SamplingParams(
+                temperature=temperature,
+                max_tokens=2048,
+                stop=["</answer>", "\n\nTask:", "<|im_end|>", "</s>", "<|im_start|>"],
+                n=1
+            ),
+            use_tqdm=True
+        )
+        grouped_outputs = {i: [output.outputs[0].text] for i, output in enumerate(outputs)}
     
     # 处理结果
     results = []
-    string_match_correct = 0
-    judge_correct = 0
+    # 对于AIME数据集，使用累加准确率；对于其他数据集，使用累加正确数
+    string_match_correct = 0.0 if is_aime else 0
+    judge_correct = 0.0 if is_aime else 0
     total = len(examples)
     
     print("Processing results...")
-    for i, (example, output) in enumerate(tqdm(zip(examples, outputs), total=total)):
-        response = output.outputs[0].text
-        
-        # 提取答案
-        predicted_answer = extract_answer_from_response(response)
+    for i in tqdm(range(total), total=total):
+        example = examples[i]
+        responses = grouped_outputs[i]
         
         # 获取ground truth
         if data_name == 'mmlupro':
@@ -333,42 +369,120 @@ def evaluate_dataset(
             ground_truth = example.get('answer', '').strip()
             question = example.get('question', example.get('problem', ''))
         
-        # String match评估
-        string_match_result = string_match_evaluation(predicted_answer, ground_truth, data_name)
-        if string_match_result:
-            string_match_correct += 1
-        
-        # Judge评估
-        judge_result = False
-        if use_judge:
-            try:
-                judge_result = judge_evaluation(llm, tokenizer, question, response, judge_model)
-                if judge_result:
+        # 对于AIME数据集，计算mean@64（所有rollout的平均准确率）
+        if is_aime:
+            string_match_results = []
+            judge_results = []
+            predicted_answers = []
+            
+            for response in responses:
+                # 提取答案
+                predicted_answer = extract_answer_from_response(response)
+                predicted_answers.append(predicted_answer)
+                
+                # String match评估
+                string_match_result = string_match_evaluation(predicted_answer, ground_truth, data_name)
+                string_match_results.append(string_match_result)
+                
+                # Judge评估
+                if use_judge:
+                    try:
+                        judge_result = judge_evaluation(llm, tokenizer, question, response, judge_model)
+                        judge_results.append(judge_result)
+                    except Exception as e:
+                        print(f"Error in judge evaluation for example {i}: {e}")
+                        judge_results.append(False)
+            
+            # 计算该题的准确率（64次中正确的比例）
+            question_string_match_acc = sum(string_match_results) / len(string_match_results)
+            question_judge_acc = sum(judge_results) / len(judge_results) if use_judge else None
+            
+            # 累加准确率（用于计算所有题目的平均）
+            string_match_correct += question_string_match_acc
+            if use_judge and question_judge_acc is not None:
+                # Judge正确性：judge的判断和string match的判断一致
+                # 对于每个rollout，判断judge和string match是否一致
+                judge_agreement_count = sum(
+                    judge_results[j] == string_match_results[j] 
+                    for j in range(len(string_match_results))
+                )
+                judge_correct += judge_agreement_count / len(string_match_results)
+            
+            # 保存结果（保存第一个响应作为代表）
+            result = {
+                'idx': example.get('idx', i),
+                'question': question,
+                'ground_truth': ground_truth,
+                'predicted_answer': predicted_answers[0],  # 保存第一个预测答案
+                'all_predicted_answers': predicted_answers,  # 保存所有64个答案
+                'full_response': responses[0],  # 保存第一个完整响应
+                'all_responses': responses,  # 保存所有64个响应
+                'string_match_accuracy': question_string_match_acc,  # 该题的准确率（64次中正确的比例）
+                'judge_accuracy': question_judge_acc if use_judge else None,  # 该题的judge准确率
+                'n_sampling': n_sampling,
+                'n_correct_samples': sum(string_match_results)  # 64次中正确的次数
+            }
+        else:
+            # 非AIME数据集，单次生成
+            response = responses[0]
+            
+            # 提取答案
+            predicted_answer = extract_answer_from_response(response)
+            
+            # String match评估
+            string_match_result = string_match_evaluation(predicted_answer, ground_truth, data_name)
+            if string_match_result:
+                string_match_correct += 1
+            
+            # Judge评估
+            judge_result = False
+            if use_judge:
+                try:
+                    judge_result = judge_evaluation(llm, tokenizer, question, response, judge_model)
+                except Exception as e:
+                    print(f"Error in judge evaluation for example {i}: {e}")
+                    judge_result = False
+            
+            # Judge正确性：judge的判断和string match的判断一致
+            if use_judge:
+                if judge_result == string_match_result:
                     judge_correct += 1
-            except Exception as e:
-                print(f"Error in judge evaluation for example {i}: {e}")
-                judge_result = False
+            
+            # 保存结果
+            result = {
+                'idx': example.get('idx', i),
+                'question': question,
+                'ground_truth': ground_truth,
+                'predicted_answer': predicted_answer,
+                'full_response': response,
+                'string_match_correct': string_match_result,
+                'judge_correct': (judge_result == string_match_result) if use_judge else None,
+                'judge_result': judge_result if use_judge else None
+            }
         
-        # 保存结果
-        result = {
-            'idx': example.get('idx', i),
-            'question': question,
-            'ground_truth': ground_truth,
-            'predicted_answer': predicted_answer,
-            'full_response': response,
-            'string_match_correct': string_match_result,
-            'judge_correct': judge_result if use_judge else None
-        }
         results.append(result)
     
     # 计算准确率
-    string_match_acc = string_match_correct / total * 100
-    judge_acc = judge_correct / total * 100 if use_judge else None
+    if is_aime:
+        # mean@64: 所有rollout的平均准确率
+        string_match_acc = (string_match_correct / total) * 100
+        judge_acc = (judge_correct / total) * 100 if use_judge else None
+    else:
+        # 普通准确率
+        string_match_acc = string_match_correct / total * 100
+        judge_acc = judge_correct / total * 100 if use_judge else None
     
     print(f"\nResults for {data_name}:")
-    print(f"  String Match Accuracy: {string_match_acc:.2f}% ({string_match_correct}/{total})")
-    if use_judge:
-        print(f"  Judge Accuracy: {judge_acc:.2f}% ({judge_correct}/{total})")
+    if is_aime:
+        print(f"  Sampling: {n_sampling} times with temperature={temperature}")
+        print(f"  Evaluation: Mean@64 (average accuracy across all {n_sampling} rollouts)")
+        print(f"  String Match Accuracy (Mean@64): {string_match_acc:.2f}%")
+        if use_judge:
+            print(f"  Judge Accuracy (Mean@64, agreement with string match): {judge_acc:.2f}%")
+    else:
+        print(f"  String Match Accuracy: {string_match_acc:.2f}% ({string_match_correct}/{total})")
+        if use_judge:
+            print(f"  Judge Accuracy (agreement with string match): {judge_acc:.2f}% ({judge_correct}/{total})")
     
     # 保存结果
     os.makedirs(output_dir, exist_ok=True)
@@ -384,7 +498,9 @@ def evaluate_dataset(
         'string_match_correct': string_match_correct,
         'string_match_accuracy': string_match_acc,
         'judge_correct': judge_correct if use_judge else None,
-        'judge_accuracy': judge_acc if use_judge else None
+        'judge_accuracy': judge_acc if use_judge else None,
+        'temperature': temperature,
+        'n_sampling': n_sampling if is_aime else 1
     }
 
 

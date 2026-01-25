@@ -125,7 +125,12 @@ Then provide your judgment between <judgment> and </judgment> tags:
 
 ### String Match评估
 
-- **AIME24/AIME25**: 提取答案中的数字，与ground truth进行比较
+- **AIME24/AIME25**: 
+  - 使用temperature=0.6，每个问题采样64次
+  - 计算Mean@64：所有rollout的平均准确率
+  - 对于每个问题，计算64次采样中正确的比例
+  - 最终准确率 = 所有问题的平均准确率（所有rollout中正确的比例的平均值）
+  - 提取答案中的数字，与ground truth进行比较
 - **MMLUPro**: 提取答案中的选项字母（A-J），与ground truth进行比较
 
 ### Judge评估
@@ -133,6 +138,10 @@ Then provide your judgment between <judgment> and </judgment> tags:
 - 使用judge prompt让模型分析答案的正确性
 - 从响应中提取`<judgment>true</judgment>`或`<judgment>false</judgment>`
 - 如果没有找到标签，根据响应中的关键词判断
+- **Judge正确性定义**：judge的判断与string match的判断一致才算正确
+  - 即：如果string match认为正确，judge也认为正确 → judge正确
+  - 如果string match认为错误，judge也认为错误 → judge正确
+  - 如果两者不一致 → judge错误
 
 ## 注意事项
 
@@ -148,12 +157,13 @@ Then provide your judgment between <judgment> and </judgment> tags:
 Evaluating dataset: aime24
 ============================================================
 Loaded 100 examples
-Generating responses...
+Generating responses (temperature=0.6, n_sampling=64)...
 Processing results...
 
 Results for aime24:
+  Sampling: 64 times with temperature=0.6
   String Match Accuracy: 45.00% (45/100)
-  Judge Accuracy: 42.00% (42/100)
+  Judge Accuracy (agreement with string match): 42.00% (42/100)
 Results saved to ./results/aime24_results.jsonl
 
 ============================================================
@@ -165,3 +175,7 @@ aime24           45.00%         42.00%
 aime25           38.00%         35.00%
 mmlupro          52.00%         50.00%
 ```
+
+**注意**：
+- AIME24和AIME25数据集使用temperature=0.6，每个问题采样64次
+- Judge准确率表示judge判断与string match判断一致的比例
