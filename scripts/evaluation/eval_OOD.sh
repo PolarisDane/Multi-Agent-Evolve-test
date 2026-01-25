@@ -87,8 +87,8 @@ python -u -m absolute_zero_reasoner.main_azr_ppo \
     azr.data_selection_strategy.batched_estimate=false \
     azr.data_selection_strategy.io_n=1 \
     trainer.resume_mode=resume_path \
-    trainer.resume_dir=/inspire/hdd/project/robot-reasoning/xuyue-p-xuyue/cy/Multi-agent-evolve/checkpoints/2026-01-22/15-24-07_MAE_MAE_3B_halfref \
-    trainer.resume_from_path=/inspire/hdd/project/robot-reasoning/xuyue-p-xuyue/cy/Multi-agent-evolve/checkpoints/2026-01-22/15-24-07_MAE_MAE_3B_halfref/general_io/models--Qwen--Qwen2.5-3B-Instruct/boxed/global_step_200 \
+    trainer.resume_dir=/inspire/hdd/project/robot-reasoning/xuyue-p-xuyue/cy/Multi-agent-evolve/checkpoints/2026-01-25/12-46-45_MAE_MAE_3B_halfref \
+    trainer.resume_from_path=/inspire/hdd/project/robot-reasoning/xuyue-p-xuyue/cy/Multi-agent-evolve/checkpoints/2026-01-25/12-46-45_MAE_MAE_3B_halfref/general_io/models--Qwen--Qwen2.5-3B-Instruct/boxed/global_step_50 \
     trainer.total_epochs=30 \
     +azr.dump_eval_data=True \
     +prompt_manager.template_file=absolute_zero_reasoner/data_construction/initial_prompt_templates/default.json $@

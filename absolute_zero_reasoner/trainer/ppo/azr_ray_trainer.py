@@ -1169,8 +1169,8 @@ class GeneralIORayPPOTrainer(ReasonRLRayPPOTrainer):
                             if 'answer' in item:
                                 f.write(f"Answer: {item['answer']}\n")
                                 f.write("==============================================\n")
-                            elif 'generation' in item:
-                                f.write(f"Answer: {item['generation']}\n")
+                            if 'generation' in item:
+                                f.write(f"Generation: {item['generation']}\n")
                                 f.write("==============================================\n")
                             f.write("\n")
                         f.write("\n")
