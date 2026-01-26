@@ -408,6 +408,9 @@ def evaluate_dataset(
                 )
                 judge_correct += judge_agreement_count / len(string_match_results)
             
+            # 保存每个rollout的judge结果（用于后续分析）
+            all_judge_results = judge_results if use_judge else None
+            
             # 保存结果（保存第一个响应作为代表）
             result = {
                 'idx': example.get('idx', i),
@@ -420,7 +423,9 @@ def evaluate_dataset(
                 'string_match_accuracy': question_string_match_acc,  # 该题的准确率（64次中正确的比例）
                 'judge_accuracy': question_judge_acc if use_judge else None,  # 该题的judge准确率
                 'n_sampling': n_sampling,
-                'n_correct_samples': sum(string_match_results)  # 64次中正确的次数
+                'n_correct_samples': sum(string_match_results),  # 64次中正确的次数
+                'all_string_match_results': string_match_results,  # 保存每个rollout的string match结果
+                'all_judge_results': all_judge_results  # 保存每个rollout的judge结果
             }
         else:
             # 非AIME数据集，单次生成

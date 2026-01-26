@@ -179,3 +179,42 @@ mmlupro          52.00%         50.00%
 **注意**：
 - AIME24和AIME25数据集使用temperature=0.6，每个问题采样64次
 - Judge准确率表示judge判断与string match判断一致的比例
+
+## 分析Judge一致性
+
+运行评估后，可以使用 `analyze_judge_consistency.py` 分析judge的一致性：
+
+```bash
+# 分析结果文件中的judge一致性（自动查找所有数据集）
+python analyze_judge_consistency.py --results_dir ./results
+
+# 或指定具体文件路径
+python analyze_judge_consistency.py \
+    --aime24_file ./results/aime24_results.jsonl \
+    --aime25_file ./results/aime25_results.jsonl \
+    --mmlupro_file ./results/mmlupro_results.jsonl
+```
+
+该脚本会统计：
+- **当string match正确时**：judge也判断为正确的比例（一致性）
+- **当string match错误时**：judge也判断为错误的比例（一致性）
+- **总体一致性**：所有rollout中judge与string match一致的比例
+
+输出示例：
+```
+Statistics for aime24:
+  Total questions: 100
+  Total rollouts: 6400
+  String match correct rollouts: 2880 (45.00%)
+  String match wrong rollouts: 3520 (55.00%)
+
+  When string match is CORRECT (2880 rollouts):
+    Judge agrees (also judges as correct): 85.42% (2460/2880)
+    Judge disagrees (judges as wrong): 14.58% (420/2880)
+
+  When string match is WRONG (3520 rollouts):
+    Judge agrees (also judges as wrong): 72.16% (2540/3520)
+    Judge disagrees (judges as correct): 27.84% (980/3520)
+
+  Overall judge agreement rate: 78.13% (5000/6400)
+```
