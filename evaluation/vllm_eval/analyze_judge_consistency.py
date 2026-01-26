@@ -189,6 +189,9 @@ def analyze_from_aggregated_stats(results: List[Dict], dataset_name: str) -> Dic
         'judge_disagree_when_wrong': 0,
     }
     
+    has_judge_results = False
+    missing_judge_count = 0
+    
     for result in results:
         # 检查是否有保存每个rollout的结果
         if 'all_string_match_results' in result and 'all_judge_results' in result:
@@ -197,8 +200,10 @@ def analyze_from_aggregated_stats(results: List[Dict], dataset_name: str) -> Dic
             judge_results = result.get('all_judge_results', [])
             
             if judge_results is None:
+                missing_judge_count += 1
                 continue
             
+            has_judge_results = True
             n_sampling = len(string_match_results)
             stats['total_rollouts'] += n_sampling
             
@@ -217,24 +222,48 @@ def analyze_from_aggregated_stats(results: List[Dict], dataset_name: str) -> Dic
                     elif judge_result is True:
                         stats['judge_disagree_when_wrong'] += 1
         elif 'all_responses' in result and 'all_predicted_answers' in result:
-            # AIME数据集：有多个rollout，但没有保存judge结果
-            # 需要重新评估或使用统计方法
-            all_predicted_answers = result.get('all_predicted_answers', [])
-            ground_truth = result.get('ground_truth', '')
-            
-            n_sampling = len(all_predicted_answers)
-            stats['total_rollouts'] += n_sampling
-            
-            # 从string_match_accuracy推断
-            string_match_acc = result.get('string_match_accuracy', 0.0)
-            n_correct = int(round(string_match_acc * n_sampling))
-            n_wrong = n_sampling - n_correct
-            
-            stats['string_match_correct_rollouts'] += n_correct
-            stats['string_match_wrong_rollouts'] += n_wrong
-            
-            # 如果没有保存judge结果，无法准确分析
-            print(f"Warning: Question {result.get('idx', 'unknown')} does not have per-rollout judge results")
+            # AIME数据集：有多个rollout，检查是否有judge结果
+            if 'all_judge_results' not in result:
+                missing_judge_count += 1
+                # 仍然统计string match的结果
+                all_predicted_answers = result.get('all_predicted_answers', [])
+                n_sampling = len(all_predicted_answers)
+                stats['total_rollouts'] += n_sampling
+                
+                # 从string_match_accuracy推断
+                string_match_acc = result.get('string_match_accuracy', 0.0)
+                n_correct = int(round(string_match_acc * n_sampling))
+                n_wrong = n_sampling - n_correct
+                
+                stats['string_match_correct_rollouts'] += n_correct
+                stats['string_match_wrong_rollouts'] += n_wrong
+            else:
+                # 有judge结果
+                has_judge_results = True
+                string_match_results = result.get('all_string_match_results', [])
+                judge_results = result.get('all_judge_results', [])
+                
+                if judge_results is None:
+                    missing_judge_count += 1
+                    continue
+                
+                n_sampling = len(string_match_results)
+                stats['total_rollouts'] += n_sampling
+                
+                # 统计每个rollout
+                for string_match_correct, judge_result in zip(string_match_results, judge_results):
+                    if string_match_correct:
+                        stats['string_match_correct_rollouts'] += 1
+                        if judge_result is True:
+                            stats['judge_agree_when_correct'] += 1
+                        elif judge_result is False:
+                            stats['judge_disagree_when_correct'] += 1
+                    else:
+                        stats['string_match_wrong_rollouts'] += 1
+                        if judge_result is False:
+                            stats['judge_agree_when_wrong'] += 1
+                        elif judge_result is True:
+                            stats['judge_disagree_when_wrong'] += 1
         else:
             # 单个rollout
             string_match_correct = result.get('string_match_correct', False)
@@ -254,6 +283,10 @@ def analyze_from_aggregated_stats(results: List[Dict], dataset_name: str) -> Dic
                     stats['judge_agree_when_wrong'] += 1
                 elif judge_result is True:
                     stats['judge_disagree_when_wrong'] += 1
+    
+    # 添加警告信息
+    stats['has_judge_results'] = has_judge_results
+    stats['missing_judge_count'] = missing_judge_count
     
     return stats
 
@@ -304,6 +337,20 @@ def main():
         
         # 分析judge一致性
         stats = analyze_from_aggregated_stats(results, dataset_name)
+        
+        # 检查是否有judge结果
+        if not stats['has_judge_results']:
+            print(f"\n⚠️  WARNING: No judge results found in {dataset_name} results file!")
+            print(f"   This dataset has {stats['missing_judge_count']} questions without judge results.")
+            print(f"   Please re-run the evaluation with the updated code to generate judge results.")
+            print(f"   The evaluation script will now save 'all_judge_results' for each rollout.")
+            print(f"\n   Skipping judge consistency analysis for {dataset_name}...")
+            continue
+        
+        if stats['missing_judge_count'] > 0:
+            print(f"\n⚠️  WARNING: {stats['missing_judge_count']} questions are missing judge results.")
+            print(f"   These questions will be excluded from judge consistency analysis.")
+        
         all_stats.append(stats)
         
         # 打印统计结果
