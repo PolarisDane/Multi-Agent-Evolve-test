@@ -3,3 +3,4 @@ transformers>=4.30.0
 torch>=2.0.0
 tqdm
 numpy
+scikit-learn>=1.0.0

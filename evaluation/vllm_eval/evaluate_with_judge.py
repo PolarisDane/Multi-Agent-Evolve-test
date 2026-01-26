@@ -18,6 +18,13 @@ from vllm import LLM, SamplingParams
 from transformers import AutoTokenizer
 import sys
 
+try:
+    from sklearn.metrics import roc_auc_score
+    HAS_SKLEARN = True
+except ImportError:
+    HAS_SKLEARN = False
+    print("Warning: sklearn not available. AUC score will not be calculated.")
+
 # 添加math_eval路径以便导入工具函数
 current_dir = os.path.dirname(os.path.abspath(__file__))
 math_eval_path = os.path.join(current_dir, '..', 'math_eval', 'eval')
@@ -319,14 +326,14 @@ def evaluate_dataset(
     # 判断是否为AIME数据集，需要采样多次
     is_aime = data_name in ['aime24', 'aime25']
     temperature = 0.6 if is_aime else 0.0
-    n_sampling = 64 if is_aime else 1
+    n_sampling = 10 if is_aime else 1
     
     # 生成回答
     print(f"Generating responses (temperature={temperature}, n_sampling={n_sampling})...")
     
-    # 对于AIME数据集，每个问题需要采样64次
+    # 对于AIME数据集，每个问题需要采样n_sampling次
     if is_aime:
-        # 重复每个prompt 64次
+        # 重复每个prompt n_sampling次
         repeated_prompts = []
         prompt_indices = []  # 记录每个prompt的原始索引
         for i, prompt in enumerate(prompts):
@@ -375,6 +382,9 @@ def evaluate_dataset(
     judge_pass_at_1_count = 0 if is_aime else 0
     # 用于无偏估计pass@1的数据
     num_correct_per_problem = [] if is_aime else None
+    # 用于计算AUC：收集所有rollout的string match和judge结果
+    all_string_match_labels = [] if use_judge else None
+    all_judge_predictions = [] if use_judge else None
     total = len(examples)
     
     print("Processing results...")
@@ -390,7 +400,7 @@ def evaluate_dataset(
             ground_truth = example.get('answer', '').strip()
             question = example.get('question', example.get('problem', ''))
         
-        # 对于AIME数据集，计算mean@64（所有rollout的平均准确率）
+        # 对于AIME数据集，计算mean@{n_sampling}（所有rollout的平均准确率）
         if is_aime:
             string_match_results = []
             judge_results = []
@@ -414,11 +424,11 @@ def evaluate_dataset(
                         print(f"Error in judge evaluation for example {i}: {e}")
                         judge_results.append(False)
             
-            # 计算该题的准确率（64次中正确的比例）- mean@64
+            # 计算该题的准确率（n_sampling次中正确的比例）- mean@{n_sampling}
             question_string_match_acc = sum(string_match_results) / len(string_match_results)
             question_judge_acc = sum(judge_results) / len(judge_results) if use_judge else None
             
-            # 计算pass@64：该题是否至少有一次正确（从64个中选64个，即是否至少有一个正确）
+            # 计算pass@{n_sampling}：该题是否至少有一次正确（从n_sampling个中选n_sampling个，即是否至少有一个正确）
             question_string_match_pass_at_64 = 1.0 if any(string_match_results) else 0.0
             question_judge_pass_at_64 = None
             if use_judge and len(judge_results) > 0:
@@ -448,6 +458,11 @@ def evaluate_dataset(
             # 收集用于无偏估计pass@1的数据
             num_correct_per_problem.append(sum(string_match_results))
             
+            # 收集用于计算AUC的数据（所有rollout的string match和judge结果）
+            if use_judge and len(judge_results) > 0:
+                all_string_match_labels.extend([int(x) for x in string_match_results])
+                all_judge_predictions.extend([int(x) for x in judge_results])
+            
             # 保存每个rollout的judge结果（用于后续分析）
             # 只有当use_judge=True且judge_results不为空时才保存
             all_judge_results = judge_results if (use_judge and len(judge_results) > 0) else None
@@ -458,15 +473,15 @@ def evaluate_dataset(
                 'question': question,
                 'ground_truth': ground_truth,
                 'predicted_answer': predicted_answers[0],  # 保存第一个预测答案
-                'all_predicted_answers': predicted_answers,  # 保存所有64个答案
+                'all_predicted_answers': predicted_answers,  # 保存所有n_sampling个答案
                 'full_response': responses[0],  # 保存第一个完整响应
-                'all_responses': responses,  # 保存所有64个响应
-                'string_match_accuracy': question_string_match_acc,  # 该题的准确率（64次中正确的比例）- mean@64
-                'judge_accuracy': question_judge_acc if use_judge else None,  # 该题的judge准确率 - mean@64
-                'string_match_pass_at_64': question_string_match_pass_at_64,  # 该题是否至少有一次正确（pass@64）
-                'judge_pass_at_64': question_judge_pass_at_64 if use_judge else None,  # 该题的judge pass@64
+                'all_responses': responses,  # 保存所有n_sampling个响应
+                'string_match_accuracy': question_string_match_acc,  # 该题的准确率（n_sampling次中正确的比例）- mean@{n_sampling}
+                'judge_accuracy': question_judge_acc if use_judge else None,  # 该题的judge准确率 - mean@{n_sampling}
+                'string_match_pass_at_64': question_string_match_pass_at_64,  # 该题是否至少有一次正确（pass@{n_sampling}）
+                'judge_pass_at_64': question_judge_pass_at_64 if use_judge else None,  # 该题的judge pass@{n_sampling}
                 'n_sampling': n_sampling,
-                'n_correct_samples': sum(string_match_results),  # 64次中正确的次数
+                'n_correct_samples': sum(string_match_results),  # n_sampling次中正确的次数
                 'all_string_match_results': string_match_results,  # 保存每个rollout的string match结果
                 'all_judge_results': all_judge_results  # 保存每个rollout的judge结果（如果进行了judge评估）
             }
@@ -512,22 +527,40 @@ def evaluate_dataset(
     
     # 计算准确率
     if is_aime:
-        # mean@64: 所有rollout的平均准确率
+        # mean@{n_sampling}: 所有rollout的平均准确率
         string_match_acc_mean = (string_match_correct / total) * 100
         judge_acc_mean = (judge_correct / total) * 100 if use_judge else None
         
-        # pass@64: 所有问题中至少有一次正确的比例（从64个中选64个，即是否至少有一个正确）
+        # pass@{n_sampling}: 所有问题中至少有一次正确的比例（从n_sampling个中选n_sampling个，即是否至少有一个正确）
         string_match_pass_at_64 = (string_match_pass_at_1_count / total) * 100
         judge_pass_at_64 = (judge_pass_at_1_count / total) * 100 if use_judge else None
         
-        # pass@1估计: 使用无偏估计方法计算pass@1（从64个中选1个，至少有一个正确的概率）
+        # pass@1估计: 使用无偏估计方法计算pass@1（从n_sampling个中选1个，至少有一个正确的概率）
         pass_at_1_estimates = [estimate_pass_at_k(n_sampling, c, 1) for c in num_correct_per_problem]
         string_match_pass_at_1 = np.mean(pass_at_1_estimates) * 100
         
-        # pass@64估计: 使用无偏估计方法计算pass@64（从64个中选64个，至少有一个正确的概率）
-        # 注意：pass@64的无偏估计应该等于pass@64的简单方法（因为选全部64个）
+        # pass@{n_sampling}估计: 使用无偏估计方法计算pass@{n_sampling}（从n_sampling个中选n_sampling个，至少有一个正确的概率）
+        # 注意：pass@{n_sampling}的无偏估计应该等于pass@{n_sampling}的简单方法（因为选全部n_sampling个）
         pass_at_64_estimates = [estimate_pass_at_k(n_sampling, c, n_sampling) for c in num_correct_per_problem]
         string_match_pass_at_64_unbiased = np.mean(pass_at_64_estimates) * 100
+        
+        # 计算AUC score（ROC-AUC）：使用string match作为真实标签，judge作为预测标签
+        auc_score = None
+        if use_judge and all_string_match_labels is not None and len(all_string_match_labels) > 0:
+            if HAS_SKLEARN:
+                try:
+                    # 检查是否有正负样本（AUC需要至少有一个正样本和一个负样本）
+                    unique_labels = set(all_string_match_labels)
+                    if len(unique_labels) > 1:
+                        auc_score = roc_auc_score(all_string_match_labels, all_judge_predictions)
+                    else:
+                        print(f"  Warning: Cannot calculate AUC - all labels are the same ({unique_labels})")
+                        auc_score = None
+                except Exception as e:
+                    print(f"  Error calculating AUC: {e}")
+                    auc_score = None
+            else:
+                print("  Warning: sklearn not available, skipping AUC calculation")
     else:
         # 普通准确率
         string_match_acc_mean = string_match_correct / total * 100
@@ -536,26 +569,50 @@ def evaluate_dataset(
         string_match_pass_at_64 = None
         judge_pass_at_64 = None
         string_match_pass_at_64_unbiased = None
+        auc_score = None
+        
+        # 对于非AIME数据集，也可以计算AUC（如果只有一个rollout，AUC就是准确率）
+        if use_judge:
+            all_string_match_labels_single = []
+            all_judge_predictions_single = []
+            for result in results:
+                if result.get('string_match_correct') is not None and result.get('judge_result') is not None:
+                    all_string_match_labels_single.append(int(result['string_match_correct']))
+                    all_judge_predictions_single.append(int(result['judge_result']))
+            
+            if HAS_SKLEARN and len(all_string_match_labels_single) > 0:
+                try:
+                    unique_labels = set(all_string_match_labels_single)
+                    if len(unique_labels) > 1:
+                        auc_score = roc_auc_score(all_string_match_labels_single, all_judge_predictions_single)
+                    else:
+                        auc_score = None
+                except Exception as e:
+                    auc_score = None
     
     print(f"\nResults for {data_name}:")
     if is_aime:
         print(f"  Sampling: {n_sampling} times with temperature={temperature}")
         print(f"  Evaluation Metrics:")
-        print(f"    Mean@64 (average accuracy across all {n_sampling} rollouts):")
-        print(f"      String Match Accuracy (Mean@64): {string_match_acc_mean:.2f}%")
+        print(f"    Mean@{n_sampling} (average accuracy across all {n_sampling} rollouts):")
+        print(f"      String Match Accuracy (Mean@{n_sampling}): {string_match_acc_mean:.2f}%")
         if use_judge:
-            print(f"      Judge Accuracy (Mean@64, agreement with string match): {judge_acc_mean:.2f}%")
+            print(f"      Judge Accuracy (Mean@{n_sampling}, agreement with string match): {judge_acc_mean:.2f}%")
         print(f"    Pass@1 (estimated from {n_sampling} rollouts, selecting 1 sample):")
         print(f"      String Match Pass@1 (unbiased estimate): {string_match_pass_at_1:.2f}%")
-        print(f"    Pass@64 (from {n_sampling} rollouts, selecting all {n_sampling} samples):")
-        print(f"      String Match Pass@64 (simple): {string_match_pass_at_64:.2f}%")
-        print(f"      String Match Pass@64 (unbiased estimate): {string_match_pass_at_64_unbiased:.2f}%")
+        print(f"    Pass@{n_sampling} (from {n_sampling} rollouts, selecting all {n_sampling} samples):")
+        print(f"      String Match Pass@{n_sampling} (simple): {string_match_pass_at_64:.2f}%")
+        print(f"      String Match Pass@{n_sampling} (unbiased estimate): {string_match_pass_at_64_unbiased:.2f}%")
         if use_judge:
-            print(f"      Judge Pass@64 (agreement with string match): {judge_pass_at_64:.2f}%")
+            print(f"      Judge Pass@{n_sampling} (agreement with string match): {judge_pass_at_64:.2f}%")
+        if auc_score is not None:
+            print(f"    AUC Score (ROC-AUC, judge vs string match): {auc_score:.4f}")
     else:
         print(f"  String Match Accuracy: {string_match_acc_mean:.2f}% ({string_match_correct}/{total})")
         if use_judge:
             print(f"  Judge Accuracy (agreement with string match): {judge_acc_mean:.2f}% ({judge_correct}/{total})")
+        if auc_score is not None:
+            print(f"  AUC Score (ROC-AUC, judge vs string match): {auc_score:.4f}")
     
     # 保存结果
     os.makedirs(output_dir, exist_ok=True)
@@ -582,6 +639,7 @@ def evaluate_dataset(
             'judge_correct_mean': judge_correct if use_judge else None,
             'judge_accuracy_mean': judge_acc_mean if use_judge else None,
             'judge_pass_at_64': judge_pass_at_64 if use_judge else None,
+            'auc_score': auc_score if use_judge else None,
         })
     else:
         result_dict.update({
@@ -589,6 +647,7 @@ def evaluate_dataset(
             'string_match_accuracy': string_match_acc_mean,
             'judge_correct': judge_correct if use_judge else None,
             'judge_accuracy': judge_acc_mean if use_judge else None,
+            'auc_score': auc_score if use_judge else None,
         })
     
     return result_dict
@@ -661,30 +720,34 @@ def main():
     print("SUMMARY")
     print("="*60)
     print(f"{'Dataset':<15} {'String Match':<15} {'Judge':<15}")
-    print("-"*90)
-    print(f"{'Dataset':<15} {'Mean@64':<15} {'Pass@1':<15} {'Pass@64':<15} {'Judge Mean@64':<15} {'Judge Pass@64':<15}")
-    print("-"*90)
+    print("-"*110)
+    print(f"{'Dataset':<15} {'Mean@N':<15} {'Pass@1':<15} {'Pass@N':<15} {'Judge Mean@N':<15} {'Judge Pass@N':<15} {'AUC':<10}")
+    print("-"*110)
     for result in all_results:
         dataset = result['dataset']
         if result.get('n_sampling', 1) > 1:
-            # AIME数据集，显示mean@64、pass@1和pass@64
+            # AIME数据集，显示mean@N、pass@1和pass@N
             sm_acc_mean = result.get('string_match_accuracy_mean', 'N/A')
             sm_pass_at_1 = result.get('string_match_pass_at_1', 'N/A')
             sm_pass_at_64 = result.get('string_match_pass_at_64_unbiased', result.get('string_match_pass_at_64_simple', 'N/A'))
             judge_acc_mean = result.get('judge_accuracy_mean', 'N/A')
             judge_pass_at_64 = result.get('judge_pass_at_64', 'N/A')
+            auc = result.get('auc_score', 'N/A')
             if isinstance(sm_acc_mean, float):
-                print(f"{dataset:<15} {sm_acc_mean:>6.2f}%       {sm_pass_at_1:>6.2f}%       {sm_pass_at_64:>6.2f}%       {judge_acc_mean:>6.2f}%       {judge_pass_at_64:>6.2f}%")
+                auc_str = f"{auc:.4f}" if isinstance(auc, float) else auc
+                print(f"{dataset:<15} {sm_acc_mean:>6.2f}%       {sm_pass_at_1:>6.2f}%       {sm_pass_at_64:>6.2f}%       {judge_acc_mean:>6.2f}%       {judge_pass_at_64:>6.2f}%       {auc_str:<10}")
             else:
-                print(f"{dataset:<15} {sm_acc_mean:<15} {sm_pass_at_1:<15} {sm_pass_at_64:<15} {judge_acc_mean:<15} {judge_pass_at_64:<15}")
+                print(f"{dataset:<15} {sm_acc_mean:<15} {sm_pass_at_1:<15} {sm_pass_at_64:<15} {judge_acc_mean:<15} {judge_pass_at_64:<15} {auc:<10}")
         else:
             # 非AIME数据集
             sm_acc = result.get('string_match_accuracy', 'N/A')
             judge_acc = result.get('judge_accuracy', 'N/A')
+            auc = result.get('auc_score', 'N/A')
             if isinstance(sm_acc, float):
-                print(f"{dataset:<15} {sm_acc:>6.2f}%       {'N/A':<15} {'N/A':<15} {judge_acc:>6.2f}%       {'N/A':<15}")
+                auc_str = f"{auc:.4f}" if isinstance(auc, float) else auc
+                print(f"{dataset:<15} {sm_acc:>6.2f}%       {'N/A':<15} {'N/A':<15} {judge_acc:>6.2f}%       {'N/A':<15}       {auc_str:<10}")
             else:
-                print(f"{dataset:<15} {sm_acc:<15} {'N/A':<15} {'N/A':<15} {judge_acc:<15} {'N/A':<15}")
+                print(f"{dataset:<15} {sm_acc:<15} {'N/A':<15} {'N/A':<15} {judge_acc:<15} {'N/A':<15} {auc:<10}")
     
     # 保存总结
     summary_file = os.path.join(args.output_dir, 'summary.json')
