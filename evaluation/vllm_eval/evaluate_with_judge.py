@@ -325,7 +325,7 @@ def evaluate_dataset(
     
     # 判断是否为AIME数据集，需要采样多次
     is_aime = data_name in ['aime24', 'aime25']
-    temperature = 0.6 if is_aime else 0.0
+    temperature = 0.3 if is_aime else 0.0
     n_sampling = 10 if is_aime else 1
     
     # 生成回答
