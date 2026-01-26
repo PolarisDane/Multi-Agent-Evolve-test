@@ -119,6 +119,77 @@ Then provide your judgment between <judgment> and </judgment> tags:
 
 def load_dataset(data_name: str, data_dir: str = None) -> List[Dict]:
     """加载数据集"""
+    # 支持从HuggingFace加载的数据集
+    huggingface_datasets = {
+        'boolq': ('google/boolq', 'validation'),
+        'math.boolq': ('google/boolq', 'validation'),  # math.BoolQ is the same as BoolQ
+        'commonsense_qa': ('tau/commonsense_qa', 'validation'),
+        'commonsenseqa': ('tau/commonsense_qa', 'validation'),  # 别名
+    }
+    
+    # 检查是否是需要从HuggingFace加载的数据集
+    if data_name.lower() in huggingface_datasets:
+        try:
+            from datasets import load_dataset as hf_load_dataset
+            dataset_name, split = huggingface_datasets[data_name.lower()]
+            
+            print(f"Loading {data_name} from HuggingFace: {dataset_name} (split: {split})")
+            
+            if data_name.lower() in ['boolq', 'math.boolq']:
+                # BoolQ数据集
+                hf_dataset = hf_load_dataset(dataset_name, split=split)
+                examples = []
+                for i, item in enumerate(hf_dataset):
+                    passage = item['passage']
+                    question = item['question']
+                    answer = "yes" if item['answer'] else "no"
+                    
+                    # 构建问题文本（包含passage和question）
+                    question_text = f"Passage: {passage}\n\nQuestion: {question}\n\nAnswer with only 'yes' or 'no':"
+                    
+                    examples.append({
+                        'idx': i,
+                        'question': question_text,
+                        'answer': answer,
+                        'ground_truth': answer,
+                        'passage': passage,
+                        'original_question': question,
+                    })
+            elif data_name.lower() in ['commonsense_qa', 'commonsenseqa']:
+                # CommonsenseQA数据集
+                hf_dataset = hf_load_dataset(dataset_name, split=split)
+                examples = []
+                for i, item in enumerate(hf_dataset):
+                    question = item['question']
+                    choices = item['choices']['text']  # 选项文本列表
+                    labels = item['choices']['label']  # 选项标签列表 ['A', 'B', 'C', 'D', 'E']
+                    answer_key = item['answerKey']  # 正确答案标签，如 'A'
+                    
+                    # 格式化选项
+                    choice_text = "\n".join([f"{label}. {choice}" for label, choice in zip(labels, choices)])
+                    
+                    # 构建问题文本（包含问题和选项）
+                    question_text = f"Question: {question}\n\nChoices:\n{choice_text}\n\nChoose the correct answer (A, B, C, D, or E):"
+                    
+                    examples.append({
+                        'idx': i,
+                        'question': question_text,
+                        'answer': answer_key,  # 保存正确答案的标签（如 'A'）
+                        'ground_truth': answer_key,
+                        'choices': choices,  # 保存选项文本列表
+                        'choice_labels': labels,  # 保存选项标签列表
+                        'original_question': question,  # 保存原始问题（不含选项）
+                    })
+            
+            print(f"Loaded {len(examples)} examples from HuggingFace")
+            return examples
+        except ImportError:
+            raise ImportError("Please install datasets library: pip install datasets")
+        except Exception as e:
+            print(f"Error loading dataset from HuggingFace: {e}")
+            raise
+    
+    # 默认从本地文件加载
     if data_dir is None:
         data_dir = os.path.join(os.path.dirname(__file__), '..', 'math_eval', 'eval', 'data')
     
@@ -136,7 +207,7 @@ def load_dataset(data_name: str, data_dir: str = None) -> List[Dict]:
     return examples
 
 
-def extract_answer_from_response(response: str) -> str:
+def extract_answer_from_response(response: str, data_name: str = None) -> str:
     """从模型响应中提取答案（在<answer></answer>标签中）"""
     # 尝试提取<answer>标签中的内容
     answer_match = re.search(r'<answer>(.*?)</answer>', response, re.DOTALL | re.IGNORECASE)
@@ -146,6 +217,23 @@ def extract_answer_from_response(response: str) -> str:
         answer = re.sub(r'</?answer>', '', answer, flags=re.IGNORECASE)
         if answer:
             return answer
+    
+    # 对于BoolQ，尝试提取yes/no
+    if data_name and data_name.lower() in ['boolq', 'math.boolq']:
+        yes_no_match = re.search(r'\b(yes|no)\b', response.lower())
+        if yes_no_match:
+            return yes_no_match.group(1).lower()
+    
+    # 对于CommonsenseQA，尝试提取选项字母（A-E）
+    if data_name and data_name.lower() in ['commonsense_qa', 'commonsenseqa']:
+        # 优先查找括号中的选项，如 (A) 或 (B)
+        letter_match = re.search(r'\(([A-E])\)', response.upper())
+        if letter_match:
+            return letter_match.group(1).upper()
+        # 如果没有括号，查找单独的字母
+        letter_match = re.search(r'\b([A-E])\b', response.upper())
+        if letter_match:
+            return letter_match.group(1).upper()
     
     # 如果没有找到标签，尝试提取\boxed{}中的内容
     boxed_match = re.search(r'\\boxed\{([^}]+)\}', response)
@@ -188,6 +276,24 @@ def string_match_evaluation(predicted: str, ground_truth: str, data_name: str) -
     if data_name == 'mmlupro':
         # 提取第一个字母
         pred_letter = re.search(r'\b([A-J])\b', pred_clean.upper())
+        gt_letter = gt_clean.upper().strip()
+        if pred_letter:
+            return pred_letter.group(1) == gt_letter
+        return False
+    
+    # 对于BoolQ/math.BoolQ，答案是yes或no
+    if data_name.lower() in ['boolq', 'math.boolq']:
+        # 提取yes/no
+        pred_yes_no = re.search(r'\b(yes|no)\b', pred_clean.lower())
+        gt_yes_no = gt_clean.lower().strip()
+        if pred_yes_no:
+            return pred_yes_no.group(1) == gt_yes_no
+        return False
+    
+    # 对于CommonsenseQA，按选项字母判断（A/B/C/D/E）
+    if data_name.lower() in ['commonsense_qa', 'commonsenseqa']:
+        # 提取选项字母（A-E）
+        pred_letter = re.search(r'\b([A-E])\b', pred_clean.upper())
         gt_letter = gt_clean.upper().strip()
         if pred_letter:
             return pred_letter.group(1) == gt_letter
@@ -306,6 +412,12 @@ def evaluate_dataset(
         # 构建问题文本
         if data_name == 'mmlupro':
             question = example.get('question', '')
+        elif data_name.lower() in ['boolq', 'math.boolq']:
+            # BoolQ数据集：question字段已经包含了passage和question
+            question = example.get('question', '')
+        elif data_name.lower() in ['commonsense_qa', 'commonsenseqa']:
+            # CommonsenseQA数据集：question字段已经包含了问题和选项
+            question = example.get('question', '')
         else:
             question = example.get('question', example.get('problem', ''))
         
@@ -396,6 +508,12 @@ def evaluate_dataset(
         if data_name == 'mmlupro':
             ground_truth = example.get('answer', '').strip()
             question = example.get('question', '')
+        elif data_name.lower() in ['boolq', 'math.boolq']:
+            ground_truth = example.get('answer', example.get('ground_truth', '')).strip()
+            question = example.get('question', '')
+        elif data_name.lower() in ['commonsense_qa', 'commonsenseqa']:
+            ground_truth = example.get('answer', example.get('ground_truth', '')).strip()
+            question = example.get('question', '')
         else:
             ground_truth = example.get('answer', '').strip()
             question = example.get('question', example.get('problem', ''))
@@ -408,7 +526,7 @@ def evaluate_dataset(
             
             for response in responses:
                 # 提取答案
-                predicted_answer = extract_answer_from_response(response)
+                predicted_answer = extract_answer_from_response(response, data_name)
                 predicted_answers.append(predicted_answer)
                 
                 # String match评估
@@ -490,7 +608,7 @@ def evaluate_dataset(
             response = responses[0]
             
             # 提取答案
-            predicted_answer = extract_answer_from_response(response)
+            predicted_answer = extract_answer_from_response(response, data_name)
             
             # String match评估
             string_match_result = string_match_evaluation(predicted_answer, ground_truth, data_name)
