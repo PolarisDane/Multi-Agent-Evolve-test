@@ -462,7 +462,7 @@ def evaluate_dataset(
                 'full_response': response,
                 'string_match_correct': string_match_result,
                 'judge_correct': (judge_result == string_match_result) if use_judge else None,
-                'judge_result': judge_result if use_judge else None
+                'judge_result': judge_result if use_judge else None  # 保存judge结果用于分析
             }
         
         results.append(result)

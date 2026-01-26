@@ -265,11 +265,15 @@ def analyze_from_aggregated_stats(results: List[Dict], dataset_name: str) -> Dic
                         elif judge_result is True:
                             stats['judge_disagree_when_wrong'] += 1
         else:
-            # 单个rollout
+            # 单个rollout（如MMLUPro）
             string_match_correct = result.get('string_match_correct', False)
             judge_result = result.get('judge_result', None)
             
             stats['total_rollouts'] += 1
+            
+            # 检查是否有judge结果
+            if judge_result is not None:
+                has_judge_results = True
             
             if string_match_correct:
                 stats['string_match_correct_rollouts'] += 1
@@ -277,12 +281,16 @@ def analyze_from_aggregated_stats(results: List[Dict], dataset_name: str) -> Dic
                     stats['judge_agree_when_correct'] += 1
                 elif judge_result is False:
                     stats['judge_disagree_when_correct'] += 1
+                elif judge_result is None:
+                    missing_judge_count += 1
             else:
                 stats['string_match_wrong_rollouts'] += 1
                 if judge_result is False:
                     stats['judge_agree_when_wrong'] += 1
                 elif judge_result is True:
                     stats['judge_disagree_when_wrong'] += 1
+                elif judge_result is None:
+                    missing_judge_count += 1
     
     # 添加警告信息
     stats['has_judge_results'] = has_judge_results
