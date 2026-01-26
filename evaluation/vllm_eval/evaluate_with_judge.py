@@ -11,6 +11,7 @@ import os
 import json
 import argparse
 import re
+import numpy as np
 from typing import List, Dict, Any
 from tqdm import tqdm
 from vllm import LLM, SamplingParams
@@ -255,6 +256,21 @@ def judge_evaluation(llm, tokenizer, question: str, answer: str, judge_model: st
         return False
 
 
+def estimate_pass_at_k(num_samples: int, num_correct: int, k: int) -> float:
+    """
+    Estimates pass@k for a single problem.
+    Calculates 1 - comb(n - c, k) / comb(n, k).
+    """
+    # 如果正确的数量不足以选择k个（即n - c < k），那么pass@k = 1
+    if num_samples - num_correct < k:
+        return 1.0
+    # 特殊情况：当k = n时，pass@k就是"是否至少有一个正确"
+    if k == num_samples:
+        return 1.0 if num_correct > 0 else 0.0
+    # 一般情况：使用公式计算
+    return 1.0 - np.prod(1.0 - k / np.arange(num_samples - num_correct + 1, num_samples + 1))
+
+
 def evaluate_dataset(
     llm,
     tokenizer,
@@ -354,6 +370,11 @@ def evaluate_dataset(
     # 对于AIME数据集，使用累加准确率；对于其他数据集，使用累加正确数
     string_match_correct = 0.0 if is_aime else 0
     judge_correct = 0.0 if is_aime else 0
+    # pass@1估计：每个问题是否至少有一次正确
+    string_match_pass_at_1_count = 0 if is_aime else 0
+    judge_pass_at_1_count = 0 if is_aime else 0
+    # 用于无偏估计pass@1的数据
+    num_correct_per_problem = [] if is_aime else None
     total = len(examples)
     
     print("Processing results...")
@@ -393,11 +414,22 @@ def evaluate_dataset(
                         print(f"Error in judge evaluation for example {i}: {e}")
                         judge_results.append(False)
             
-            # 计算该题的准确率（64次中正确的比例）
+            # 计算该题的准确率（64次中正确的比例）- mean@64
             question_string_match_acc = sum(string_match_results) / len(string_match_results)
             question_judge_acc = sum(judge_results) / len(judge_results) if use_judge else None
             
-            # 累加准确率（用于计算所有题目的平均）
+            # 计算pass@64：该题是否至少有一次正确（从64个中选64个，即是否至少有一个正确）
+            question_string_match_pass_at_64 = 1.0 if any(string_match_results) else 0.0
+            question_judge_pass_at_64 = None
+            if use_judge and len(judge_results) > 0:
+                # Judge的pass@64：至少有一次judge和string match一致
+                judge_agreement_results = [
+                    judge_results[j] == string_match_results[j] 
+                    for j in range(len(string_match_results))
+                ]
+                question_judge_pass_at_64 = 1.0 if any(judge_agreement_results) else 0.0
+            
+            # 累加准确率（用于计算所有题目的平均）- mean@64
             string_match_correct += question_string_match_acc
             if use_judge and question_judge_acc is not None:
                 # Judge正确性：judge的判断和string match的判断一致
@@ -408,8 +440,17 @@ def evaluate_dataset(
                 )
                 judge_correct += judge_agreement_count / len(string_match_results)
             
+            # 累加pass@64计数
+            string_match_pass_at_1_count += question_string_match_pass_at_64
+            if use_judge and question_judge_pass_at_64 is not None:
+                judge_pass_at_1_count += question_judge_pass_at_64
+            
+            # 收集用于无偏估计pass@1的数据
+            num_correct_per_problem.append(sum(string_match_results))
+            
             # 保存每个rollout的judge结果（用于后续分析）
-            all_judge_results = judge_results if use_judge else None
+            # 只有当use_judge=True且judge_results不为空时才保存
+            all_judge_results = judge_results if (use_judge and len(judge_results) > 0) else None
             
             # 保存结果（保存第一个响应作为代表）
             result = {
@@ -420,12 +461,14 @@ def evaluate_dataset(
                 'all_predicted_answers': predicted_answers,  # 保存所有64个答案
                 'full_response': responses[0],  # 保存第一个完整响应
                 'all_responses': responses,  # 保存所有64个响应
-                'string_match_accuracy': question_string_match_acc,  # 该题的准确率（64次中正确的比例）
-                'judge_accuracy': question_judge_acc if use_judge else None,  # 该题的judge准确率
+                'string_match_accuracy': question_string_match_acc,  # 该题的准确率（64次中正确的比例）- mean@64
+                'judge_accuracy': question_judge_acc if use_judge else None,  # 该题的judge准确率 - mean@64
+                'string_match_pass_at_64': question_string_match_pass_at_64,  # 该题是否至少有一次正确（pass@64）
+                'judge_pass_at_64': question_judge_pass_at_64 if use_judge else None,  # 该题的judge pass@64
                 'n_sampling': n_sampling,
                 'n_correct_samples': sum(string_match_results),  # 64次中正确的次数
                 'all_string_match_results': string_match_results,  # 保存每个rollout的string match结果
-                'all_judge_results': all_judge_results  # 保存每个rollout的judge结果
+                'all_judge_results': all_judge_results  # 保存每个rollout的judge结果（如果进行了judge评估）
             }
         else:
             # 非AIME数据集，单次生成
@@ -470,24 +513,49 @@ def evaluate_dataset(
     # 计算准确率
     if is_aime:
         # mean@64: 所有rollout的平均准确率
-        string_match_acc = (string_match_correct / total) * 100
-        judge_acc = (judge_correct / total) * 100 if use_judge else None
+        string_match_acc_mean = (string_match_correct / total) * 100
+        judge_acc_mean = (judge_correct / total) * 100 if use_judge else None
+        
+        # pass@64: 所有问题中至少有一次正确的比例（从64个中选64个，即是否至少有一个正确）
+        string_match_pass_at_64 = (string_match_pass_at_1_count / total) * 100
+        judge_pass_at_64 = (judge_pass_at_1_count / total) * 100 if use_judge else None
+        
+        # pass@1估计: 使用无偏估计方法计算pass@1（从64个中选1个，至少有一个正确的概率）
+        pass_at_1_estimates = [estimate_pass_at_k(n_sampling, c, 1) for c in num_correct_per_problem]
+        string_match_pass_at_1 = np.mean(pass_at_1_estimates) * 100
+        
+        # pass@64估计: 使用无偏估计方法计算pass@64（从64个中选64个，至少有一个正确的概率）
+        # 注意：pass@64的无偏估计应该等于pass@64的简单方法（因为选全部64个）
+        pass_at_64_estimates = [estimate_pass_at_k(n_sampling, c, n_sampling) for c in num_correct_per_problem]
+        string_match_pass_at_64_unbiased = np.mean(pass_at_64_estimates) * 100
     else:
         # 普通准确率
-        string_match_acc = string_match_correct / total * 100
-        judge_acc = judge_correct / total * 100 if use_judge else None
+        string_match_acc_mean = string_match_correct / total * 100
+        judge_acc_mean = judge_correct / total * 100 if use_judge else None
+        string_match_pass_at_1 = None
+        string_match_pass_at_64 = None
+        judge_pass_at_64 = None
+        string_match_pass_at_64_unbiased = None
     
     print(f"\nResults for {data_name}:")
     if is_aime:
         print(f"  Sampling: {n_sampling} times with temperature={temperature}")
-        print(f"  Evaluation: Mean@64 (average accuracy across all {n_sampling} rollouts)")
-        print(f"  String Match Accuracy (Mean@64): {string_match_acc:.2f}%")
+        print(f"  Evaluation Metrics:")
+        print(f"    Mean@64 (average accuracy across all {n_sampling} rollouts):")
+        print(f"      String Match Accuracy (Mean@64): {string_match_acc_mean:.2f}%")
         if use_judge:
-            print(f"  Judge Accuracy (Mean@64, agreement with string match): {judge_acc:.2f}%")
+            print(f"      Judge Accuracy (Mean@64, agreement with string match): {judge_acc_mean:.2f}%")
+        print(f"    Pass@1 (estimated from {n_sampling} rollouts, selecting 1 sample):")
+        print(f"      String Match Pass@1 (unbiased estimate): {string_match_pass_at_1:.2f}%")
+        print(f"    Pass@64 (from {n_sampling} rollouts, selecting all {n_sampling} samples):")
+        print(f"      String Match Pass@64 (simple): {string_match_pass_at_64:.2f}%")
+        print(f"      String Match Pass@64 (unbiased estimate): {string_match_pass_at_64_unbiased:.2f}%")
+        if use_judge:
+            print(f"      Judge Pass@64 (agreement with string match): {judge_pass_at_64:.2f}%")
     else:
-        print(f"  String Match Accuracy: {string_match_acc:.2f}% ({string_match_correct}/{total})")
+        print(f"  String Match Accuracy: {string_match_acc_mean:.2f}% ({string_match_correct}/{total})")
         if use_judge:
-            print(f"  Judge Accuracy (agreement with string match): {judge_acc:.2f}% ({judge_correct}/{total})")
+            print(f"  Judge Accuracy (agreement with string match): {judge_acc_mean:.2f}% ({judge_correct}/{total})")
     
     # 保存结果
     os.makedirs(output_dir, exist_ok=True)
@@ -497,16 +565,33 @@ def evaluate_dataset(
     save_jsonl(results, output_file)
     print(f"Results saved to {output_file}")
     
-    return {
+    result_dict = {
         'dataset': data_name,
         'total': total,
-        'string_match_correct': string_match_correct,
-        'string_match_accuracy': string_match_acc,
-        'judge_correct': judge_correct if use_judge else None,
-        'judge_accuracy': judge_acc if use_judge else None,
         'temperature': temperature,
         'n_sampling': n_sampling if is_aime else 1
     }
+    
+    if is_aime:
+        result_dict.update({
+            'string_match_correct_mean': string_match_correct,
+            'string_match_accuracy_mean': string_match_acc_mean,
+            'string_match_pass_at_1': string_match_pass_at_1,
+            'string_match_pass_at_64_simple': string_match_pass_at_64,
+            'string_match_pass_at_64_unbiased': string_match_pass_at_64_unbiased,
+            'judge_correct_mean': judge_correct if use_judge else None,
+            'judge_accuracy_mean': judge_acc_mean if use_judge else None,
+            'judge_pass_at_64': judge_pass_at_64 if use_judge else None,
+        })
+    else:
+        result_dict.update({
+            'string_match_correct': string_match_correct,
+            'string_match_accuracy': string_match_acc_mean,
+            'judge_correct': judge_correct if use_judge else None,
+            'judge_accuracy': judge_acc_mean if use_judge else None,
+        })
+    
+    return result_dict
 
 
 def main():
@@ -576,15 +661,30 @@ def main():
     print("SUMMARY")
     print("="*60)
     print(f"{'Dataset':<15} {'String Match':<15} {'Judge':<15}")
-    print("-"*60)
+    print("-"*90)
+    print(f"{'Dataset':<15} {'Mean@64':<15} {'Pass@1':<15} {'Pass@64':<15} {'Judge Mean@64':<15} {'Judge Pass@64':<15}")
+    print("-"*90)
     for result in all_results:
         dataset = result['dataset']
-        sm_acc = result['string_match_accuracy']
-        judge_acc = result.get('judge_accuracy', 'N/A')
-        if isinstance(judge_acc, float):
-            print(f"{dataset:<15} {sm_acc:>6.2f}%       {judge_acc:>6.2f}%")
+        if result.get('n_sampling', 1) > 1:
+            # AIME数据集，显示mean@64、pass@1和pass@64
+            sm_acc_mean = result.get('string_match_accuracy_mean', 'N/A')
+            sm_pass_at_1 = result.get('string_match_pass_at_1', 'N/A')
+            sm_pass_at_64 = result.get('string_match_pass_at_64_unbiased', result.get('string_match_pass_at_64_simple', 'N/A'))
+            judge_acc_mean = result.get('judge_accuracy_mean', 'N/A')
+            judge_pass_at_64 = result.get('judge_pass_at_64', 'N/A')
+            if isinstance(sm_acc_mean, float):
+                print(f"{dataset:<15} {sm_acc_mean:>6.2f}%       {sm_pass_at_1:>6.2f}%       {sm_pass_at_64:>6.2f}%       {judge_acc_mean:>6.2f}%       {judge_pass_at_64:>6.2f}%")
+            else:
+                print(f"{dataset:<15} {sm_acc_mean:<15} {sm_pass_at_1:<15} {sm_pass_at_64:<15} {judge_acc_mean:<15} {judge_pass_at_64:<15}")
         else:
-            print(f"{dataset:<15} {sm_acc:>6.2f}%       {judge_acc}")
+            # 非AIME数据集
+            sm_acc = result.get('string_match_accuracy', 'N/A')
+            judge_acc = result.get('judge_accuracy', 'N/A')
+            if isinstance(sm_acc, float):
+                print(f"{dataset:<15} {sm_acc:>6.2f}%       {'N/A':<15} {'N/A':<15} {judge_acc:>6.2f}%       {'N/A':<15}")
+            else:
+                print(f"{dataset:<15} {sm_acc:<15} {'N/A':<15} {'N/A':<15} {judge_acc:<15} {'N/A':<15}")
     
     # 保存总结
     summary_file = os.path.join(args.output_dir, 'summary.json')

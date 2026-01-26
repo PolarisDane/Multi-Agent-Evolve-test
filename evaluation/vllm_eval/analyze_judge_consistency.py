@@ -350,8 +350,11 @@ def main():
         if not stats['has_judge_results']:
             print(f"\n⚠️  WARNING: No judge results found in {dataset_name} results file!")
             print(f"   This dataset has {stats['missing_judge_count']} questions without judge results.")
-            print(f"   Please re-run the evaluation with the updated code to generate judge results.")
-            print(f"   The evaluation script will now save 'all_judge_results' for each rollout.")
+            print(f"\n   To fix this, you have two options:")
+            print(f"   1. Re-run the evaluation (recommended):")
+            print(f"      python evaluate_with_judge.py --model <model> --datasets {dataset_name} --output_dir ./results --use_judge")
+            print(f"   2. The results file contains 'all_responses' but no judge evaluations.")
+            print(f"      You would need to re-evaluate judge for each response (requires model).")
             print(f"\n   Skipping judge consistency analysis for {dataset_name}...")
             continue
         
