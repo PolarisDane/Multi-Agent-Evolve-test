@@ -1149,7 +1149,7 @@ class GeneralIORewardManager:
                     tag_score = 1.0
                 elif open_tags == close_tags:
                     if open_tags > correct_count:
-                        tag_score = 0.5
+                        tag_score = 0.0
                     else:
                         tag_score = 0.0
                 else:
@@ -1164,7 +1164,7 @@ class GeneralIORewardManager:
                     think_tag_score = 1.0
                 elif open_tags_think == close_tags_think:
                     if open_tags_think > correct_count:
-                        think_tag_score = 0.5
+                        think_tag_score = 0.0
                     else:
                         think_tag_score = 0.0
                 else:
@@ -1174,7 +1174,7 @@ class GeneralIORewardManager:
                     answer_tag_score = 1.0
                 elif open_tags_answer == close_tags_answer:
                     if open_tags_answer > correct_count:
-                        answer_tag_score = 0.5
+                        answer_tag_score = 0.0
                     else:
                         answer_tag_score = 0.0
                 else:
@@ -1194,7 +1194,7 @@ class GeneralIORewardManager:
                     question_tag_score = 1.0
                 elif open_tags_question == close_tags_question:
                     if open_tags_question > correct_count:
-                        question_tag_score = 0.5
+                        question_tag_score = 0.0
                     else:
                         question_tag_score = 0.0
                 else:
@@ -1743,7 +1743,7 @@ class GeneralIORewardManager:
 
                 if question:
                     difficulty_score = 1 - solver_avg_scores[i]
-                    final_score = llm_scores[i] * alpha1 + difficulty_score * alpha2 + format_rewards[i] * beta
+                    final_score = llm_scores[i] / 3 + difficulty_score / 3 + format_rewards[i] / 3
                     
                     reward_tensor[i, valid_response_length - 1] = final_score
                     all_scores['llm_judge_score'].append(llm_scores[i])
@@ -1775,9 +1775,9 @@ class GeneralIORewardManager:
                             f.write(f"LLM Score: {llm_scores[i]}\n")
                             f.write("==============================================\n")
                             f.write("\n")
-                        reward_tensor[i, valid_response_length - 1] = llm_scores[i] * alpha1 + format_rewards[i] * beta
+                        reward_tensor[i, valid_response_length - 1] = format_rewards[i] / 3
                         all_scores['difficulty_score'][-1] = 0
-                        all_scores['combined_score'][-1] = llm_scores[i] * alpha1 + format_rewards[i] * beta
+                        all_scores['combined_score'][-1] = format_rewards[i] / 3
                 else:
                     print("Question format failed. Penalized and falling back")
                     reward_tensor[i, valid_response_length - 1] = 0.0
@@ -1798,7 +1798,7 @@ class GeneralIORewardManager:
                 
                 alpha = alpha1 + alpha2
                 
-                reward_tensor[i, valid_response_length - 1] = alpha * llm_scores[i] + beta * format_rewards[i]
+                reward_tensor[i, valid_response_length - 1] = llm_scores[i] / 2 + format_rewards[i] / 2
                 valid_data.append({
                     'question': data_dict.get('question', ''),
                     'answer': data_dict.get('answer', ''),
