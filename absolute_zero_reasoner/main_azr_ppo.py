@@ -275,7 +275,8 @@ class TaskRunner:
                 boxed_retry=config.reward_fn.boxed_retry,
                 judge_with_actor=config.reward_fn.judge_with_actor,
                 use_format_reward=getattr(config.azr, 'use_format_reward', True),
-                agent_output_dir=config.agent_output_dir
+                agent_output_dir=config.agent_output_dir,
+                diversity_reward_config=config.azr.reward.get('diversity_reward_config', None),
             )
 
             # For validation, use BenchmarkEvaluationRewardManager instead

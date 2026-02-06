@@ -44,9 +44,7 @@ First, analyze both answers in the <think> tags below:
 
 <think>
 Compare the mathematical content of both answers:
-- Do they arrive at the same final numerical result? (MOST IMPORTANT)
-- Is the reasoning correct in the model's answer?
-- Are there any mathematical errors?
+- Do they arrive at the same final numerical result?
 - Do they represent the same solution even if expressed differently?
 
 [Write your detailed analysis here]
@@ -96,9 +94,7 @@ First, analyze the answers in the <think> tags below:
 
 <think>
 Evaluate the truthfulness:
-- Is the model's answer factually accurate?
 - Does it align with the ground truth answer?
-- Are there any misleading or false statements?
 
 [Write your detailed analysis here]
 </think>
@@ -175,18 +171,21 @@ Then determine if the model's answer is correct:
              pass
         
         # Extract TRUE/FALSE from <answer></answer> tags
-        answer_match = re.search(r'<answer>(TRUE|FALSE)</answer>', result, re.IGNORECASE)
+        # Improved regex to handle cases where closing tag might be missing due to length limits
+        answer_match = re.search(r'<answer>\s*(TRUE|FALSE)', result, re.IGNORECASE)
         if answer_match:
             answer = answer_match.group(1).upper()
             score = 1.0 if answer == "TRUE" else 0.0
         else:
-            # Fallback: look for TRUE/FALSE anywhere in the response
-            if re.search(r'\bTRUE\b', result, re.IGNORECASE):
+            # Fallback: look for TRUE/FALSE outside of <think> tags
+            cleaned_result = re.sub(r'<think>.*?</think>', '', result, flags=re.DOTALL | re.IGNORECASE)
+            if re.search(r'\bTRUE\b', cleaned_result, re.IGNORECASE):
                 score = 1.0
-            elif re.search(r'\bFALSE\b', result, re.IGNORECASE):
+            elif re.search(r'\bFALSE\b', cleaned_result, re.IGNORECASE):
                 score = 0.0
             else:
-                score = 0.0
+                print(f"Extraction failed for item {item_data.get('index')}. Response might be unfinished or invalid.")
+                score = None
         
         return {
             'index': item_data.get('index'),
@@ -200,7 +199,7 @@ Then determine if the model's answer is correct:
         print(f"Error evaluating item {item_data.get('index', 'unknown')}: {e}")
         return {
             'index': item_data.get('index', -1),
-            'score': 0.0,
+            'score': None,
             'evaluation_result': f"Error: {str(e)}",
             'data_source': item_data.get('data_source', 'unknown'),
             'metric_type': item_data.get('metric_type', 'unknown')
@@ -216,7 +215,10 @@ def calculate_summary(output_file, summary_file):
                 if line.strip():
                     try:
                         res = json.loads(line)
-                        score = res.get('score', 0.0)
+                        score = res.get('score')
+                        if score is None:
+                            continue
+                        
                         source = res.get('data_source', 'unknown')
                         
                         all_scores['overall'].append(score)
@@ -316,7 +318,9 @@ def main():
                     try:
                         res = json.loads(line)
                         if 'index' in res and res['index'] is not None:
-                            processed_indices.add(res['index'])
+                            # Only skip if successfully evaluated (has a score)
+                            if res.get('score') is not None:
+                                processed_indices.add(res['index'])
                     except json.JSONDecodeError:
                         continue
         print(f"Found {len(processed_indices)} already processed items. Resuming...")
@@ -330,7 +334,7 @@ def main():
                 item,
                 args.model,
                 args.temperature,
-                500, # max_tokens
+                4096, # max_tokens
                 0.95, # top_p,
                 api_keys, # Pass keys list
                 args.stream # Pass stream flag

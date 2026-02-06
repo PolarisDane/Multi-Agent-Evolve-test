@@ -944,6 +944,106 @@ import json
 import numpy as np
 import random
 
+class DiversityFilter:
+    def __init__(self, 
+                 device='cuda', 
+                 model_name='sentence-transformers/all-MiniLM-L6-v2', 
+                 threshold=0.8, 
+                 penalty=0.5, 
+                 max_pool_size=1000,
+                 cache_dir="/inspire/hdd/project/robot-reasoning/xuyue-p-xuyue/ziyu/.cache/huggingface/hub"):
+        
+        if device == 'cuda' and not torch.cuda.is_available():
+            print("Warning: CUDA requested but not available (likely running on Controller). Falling back to CPU for DiversityFilter.")
+            device = 'cpu'
+            
+        self.device = device
+        self.model_name = model_name
+        self.threshold = threshold
+        self.penalty = penalty
+        self.max_pool_size = max_pool_size
+        self.cache_dir = cache_dir
+        self.pool_embeddings = None # Tensor [N, D]
+        self.pool_texts = []
+        self.model = None
+        self.tokenizer = None
+
+    def _load_model(self):
+        if self.model is None:
+            from transformers import AutoModel, AutoTokenizer
+            try:
+                self.tokenizer = AutoTokenizer.from_pretrained(self.model_name, cache_dir=self.cache_dir)
+                self.model = AutoModel.from_pretrained(self.model_name, cache_dir=self.cache_dir).to(self.device)
+                self.model.eval()
+                print(f"Loaded embedding model on device: {self.device}")
+            except Exception as e:
+                print(f"Failed to load embedding model {self.model_name} from {self.cache_dir}: {e}")
+                pass
+
+    def compute_embeddings(self, texts):
+        self._load_model()
+        if self.model is None or self.tokenizer is None:
+            return None
+        
+        # Batch processing
+        batch_size = 32
+        all_embeddings = []
+        
+        for i in range(0, len(texts), batch_size):
+            batch_texts = texts[i:i+batch_size]
+            try:
+                inputs = self.tokenizer(batch_texts, padding=True, truncation=True, return_tensors="pt", max_length=128).to(self.device)
+                
+                with torch.no_grad():
+                    outputs = self.model(**inputs)
+                
+                # Mean pooling
+                embeddings = outputs.last_hidden_state.mean(dim=1)
+                embeddings = torch.nn.functional.normalize(embeddings, p=2, dim=1)
+                all_embeddings.append(embeddings)
+            except Exception as e:
+                print(f"Error computing embeddings: {e}")
+                return None
+            
+        return torch.cat(all_embeddings, dim=0)
+
+    def filter_and_update(self, new_texts):
+        if not new_texts:
+            return []
+        
+        new_embeddings = self.compute_embeddings(new_texts)
+        if new_embeddings is None:
+            return [0.0] * len(new_texts)
+            
+        penalties = torch.zeros(len(new_texts), device=self.device)
+        
+        if self.pool_embeddings is not None:
+            # Compute cosine similarity: [B, D] @ [P, D]^T -> [B, P]
+            sim_matrix = torch.mm(new_embeddings, self.pool_embeddings.t())
+            max_sim, _ = sim_matrix.max(dim=1)
+            
+            # Apply penalty proportionally where similarity > threshold
+            # Scale from 0 (at threshold) to 1 (at 1.0) * penalty
+            excess_sim = torch.clamp(max_sim - self.threshold, min=0.0)
+            normalized_excess = excess_sim / (1.0 - self.threshold + 1e-6)
+            penalties = normalized_excess * self.penalty
+            
+        # Update pool
+        if self.pool_embeddings is None:
+            self.pool_embeddings = new_embeddings
+            self.pool_texts = new_texts
+        else:
+            self.pool_embeddings = torch.cat([self.pool_embeddings, new_embeddings], dim=0)
+            self.pool_texts.extend(new_texts)
+            
+        # Maintain max pool size (FIFO)
+        if self.pool_embeddings.size(0) > self.max_pool_size:
+            self.pool_embeddings = self.pool_embeddings[-self.max_pool_size:]
+            self.pool_texts = self.pool_texts[-self.max_pool_size:]
+            
+        return penalties.tolist()
+
+
 class GeneralIORewardManager:
     """The reward manager for GeneralIO tasks."""
     def __init__(
@@ -967,6 +1067,7 @@ class GeneralIORewardManager:
         prompt_manager=None,
         use_format_reward: bool = False,
         agent_output_dir: str = "./outputs",
+        diversity_reward_config: Dict[str, Any] = None,
         **kwargs
     ):
         self.tokenizer = tokenizer
@@ -988,6 +1089,15 @@ class GeneralIORewardManager:
         self.prompt_manager = prompt_manager
         self.use_format_reward = use_format_reward
         self.agent_output_dir = agent_output_dir
+
+        self.diversity_filter = None
+        if diversity_reward_config and diversity_reward_config.get('enabled', False):
+            self.diversity_filter = DiversityFilter(
+                threshold=diversity_reward_config.get('threshold', 0.8),
+                penalty=diversity_reward_config.get('penalty', 0.5),
+                max_pool_size=diversity_reward_config.get('max_pool_size', 1000),
+                model_name=diversity_reward_config.get('model_name', 'sentence-transformers/all-MiniLM-L6-v2')
+            )
 
     def set_prompt_manager(self, prompt_manager):
         """Set or update the prompt_manager for this reward manager."""
@@ -1726,6 +1836,25 @@ class GeneralIORewardManager:
             llm_scores, solver_avg_scores, format_rewards = self._get_all_scores(data_dicts, rollout_actor_wg, n_samples, problem_type)
             print(f"[DEBUG] Got scores - LLM scores: {llm_scores[:3]}..., Solver avg scores: {solver_avg_scores[:3]}...")
             
+            # Extract questions for diversity filtering
+            def extract_question_text(text):
+                pattern = r'<question>(.*?)</question>'
+                import re
+                matches = re.findall(pattern, text, re.DOTALL)
+                return matches[-1].strip() if matches else ""
+
+            generated_questions = []
+            for data_dict in data_dicts:
+                q = extract_question_text(data_dict.get('generation', ''))
+                if q:
+                    generated_questions.append(q)
+                else:
+                    generated_questions.append("")
+
+            diversity_penalties = [0.0] * len(data_dicts)
+            if self.diversity_filter:
+                diversity_penalties = self.diversity_filter.filter_and_update(generated_questions)
+
             for i, data_dict in enumerate(data_dicts):
                 valid_response_length = data_dict['valid_response_length']
                 
@@ -1743,12 +1872,14 @@ class GeneralIORewardManager:
 
                 if question:
                     difficulty_score = 1 - solver_avg_scores[i]
-                    final_score = llm_scores[i] / 3 + difficulty_score / 3 + format_rewards[i] / 3
+                    diversity_penalty = diversity_penalties[i]
+                    final_score = llm_scores[i] / 3 + difficulty_score / 3 + format_rewards[i] / 3 - diversity_penalty
                     
                     reward_tensor[i, valid_response_length - 1] = final_score
                     all_scores['llm_judge_score'].append(llm_scores[i])
                     all_scores['difficulty_score'].append(difficulty_score)
                     all_scores['format_reward'].append(format_rewards[i])
+                    all_scores['diversity_penalty'].append(diversity_penalty)
                     all_scores['combined_score'].append(final_score)
                     if llm_scores[i] >= 0.7:
                         # Only add question to dataset if it is valid
@@ -1784,6 +1915,7 @@ class GeneralIORewardManager:
                     all_scores['llm_judge_score'].append(0.0)
                     all_scores['difficulty_score'].append(0.0)
                     all_scores['format_reward'].append(0.0)
+                    all_scores['diversity_penalty'].append(0.0)
                     all_scores['combined_score'].append(0.0)
 
             all_scores['solver_avg_scores'] = solver_avg_scores
