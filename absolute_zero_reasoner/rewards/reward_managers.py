@@ -1406,8 +1406,9 @@ class GeneralIORewardManager:
                     
                     print("Actor evaluation response:", text)
                     try:
-                        a = (scores[0] - 1) / 9.0
-                        uid2_a_scores[uid].append(min(1.0, max(0.0, a)))
+                        raw_a = (scores[0] - 1) / 9.0
+                        a = 1.0 if raw_a >= 0.7 else 0.0
+                        uid2_a_scores[uid].append(a)
                     except:
                         print("Falling back to neutral scores.")
                         pass
@@ -1471,8 +1472,9 @@ class GeneralIORewardManager:
                         
                         print("Actor evaluation response:", text)
                         try:
-                            q = (scores[0] - 1) / 9.0
-                            uid2_q_scores[uid].append(min(1.0, max(0.0, q)))
+                            raw_q = (scores[0] - 1) / 9.0
+                            q = 1.0 if raw_q >= 0.7 else 0.0
+                            uid2_q_scores[uid].append(q)
                         except:
                             print("Falling back to neutral scores.")
                             pass
@@ -1577,8 +1579,9 @@ class GeneralIORewardManager:
                     scores = self.extract_score_from_tags(text)
                     print("Actor evaluation response:", text)
                     try:
-                        a = (scores[0] - 1) / 9.0
-                        uid2_a_scores[uid].append(min(1.0, max(0.0, a)))
+                        raw_a = (scores[0] - 1) / 9.0
+                        a = 1.0 if raw_a >= 0.7 else 0.0
+                        uid2_a_scores[uid].append(a)
                     except:
                         print("Falling back to neutral scores.")
                         pass
@@ -1658,10 +1661,12 @@ class GeneralIORewardManager:
                     # Assume scores are in 1-10 range, normalize to 0-1
                     if score >= 1 and score <= 10:
                         normalized_score = (score - 1) / 9.0
-                        normalized_scores.append(min(1.0, max(0.0, normalized_score)))
                     else:
                         # If score is already normalized or in different range, keep it this way
-                        normalized_scores.append(min(1.0, max(0.0, score)))
+                        normalized_score = score
+                    
+                    # Thresholding: >= 0.7 is 1, < 0.7 is 0
+                    normalized_scores.append(1.0 if normalized_score >= 0.7 else 0.0)
                 return normalized_scores
             else:
                 # Fallback: try to extract any number between 1-10
@@ -1673,8 +1678,8 @@ class GeneralIORewardManager:
                     for score in fallback_match:
                         score = int(score)
                         if 1 <= score <= 10:
-                            score = (score - 1) / 9.0
-                            score_list.append(min(1.0, max(0.0, score)))
+                            normalized_score = (score - 1) / 9.0
+                            score_list.append(1.0 if normalized_score >= 0.7 else 0.0)
                     if score_list:
                         return score_list
                 return [0.0]
@@ -1826,9 +1831,9 @@ class GeneralIORewardManager:
             data_dict = self._get_data_dict(data[i], problem_types[i], banned_words, uids[i], banned_assertion_keywords)
             data_dicts.append(data_dict)
 
-        alpha1 = 0.4
-        alpha2 = 0.4
-        beta = 0.2
+        alpha1 = 0.1
+        alpha2 = 0.8
+        beta = 0.1
 
         if problem_type.startswith('gen') and rollout_actor_wg is not None:
             PrettyPrinter.section_header("Computing Generation Rewards for GeneralIO Tasks")
@@ -1873,7 +1878,7 @@ class GeneralIORewardManager:
                 if question:
                     difficulty_score = 1 - solver_avg_scores[i]
                     diversity_penalty = diversity_penalties[i]
-                    final_score = llm_scores[i] / 3 + difficulty_score / 3 + format_rewards[i] / 3 - diversity_penalty
+                    final_score = llm_scores[i] * alpha1 + difficulty_score * alpha2 + format_rewards[i] * beta - diversity_penalty
                     
                     reward_tensor[i, valid_response_length - 1] = final_score
                     all_scores['llm_judge_score'].append(llm_scores[i])
@@ -1906,11 +1911,25 @@ class GeneralIORewardManager:
                             f.write(f"LLM Score: {llm_scores[i]}\n")
                             f.write("==============================================\n")
                             f.write("\n")
-                        reward_tensor[i, valid_response_length - 1] = format_rewards[i] / 3
+                        reward_tensor[i, valid_response_length - 1] = format_rewards[i] * beta
                         all_scores['difficulty_score'][-1] = 0
-                        all_scores['combined_score'][-1] = format_rewards[i] / 3
+                        all_scores['combined_score'][-1] = format_rewards[i] * beta
                 else:
                     print("Question format failed. Penalized and falling back")
+                    with open(f'{self.agent_output_dir}/low_quality_question.txt', 'a') as f:
+                        f.write(f"Question: {data_dict['question']}\n")
+                        f.write("==============================================\n")
+                        f.write("Extraction failed question\n")
+                        f.write("==============================================\n")
+                        if 'thought' in data_dict:
+                            f.write(f"Thought: {data_dict['thought']}\n")
+                            f.write("==============================================\n")
+                        if 'generation' in data_dict:
+                            f.write(f"Generation: {data_dict['generation']}\n")
+                            f.write("==============================================\n")
+                        f.write(f"LLM Score: {llm_scores[i]}\n")
+                        f.write("==============================================\n")
+                        f.write("\n")
                     reward_tensor[i, valid_response_length - 1] = 0.0
                     all_scores['llm_judge_score'].append(0.0)
                     all_scores['difficulty_score'].append(0.0)
@@ -1930,7 +1949,10 @@ class GeneralIORewardManager:
                 
                 alpha = alpha1 + alpha2
                 
-                reward_tensor[i, valid_response_length - 1] = llm_scores[i] / 2 + format_rewards[i] / 2
+                if format_rewards[i] == 0:
+                    reward_tensor[i, valid_response_length - 1] = 0
+                else:
+                    reward_tensor[i, valid_response_length - 1] = llm_scores[i] * alpha + format_rewards[i] * beta
                 valid_data.append({
                     'question': data_dict.get('question', ''),
                     'answer': data_dict.get('answer', ''),
@@ -2213,10 +2235,6 @@ class BenchmarkEvaluationRewardManager:
         
         patterns = [
             r"<answer>(.*?)</answer>",
-            r"(?:the answer is|answer:|final answer:)\s*(.+?)(?:\n|$)",
-            r"(?:therefore|thus|so),?\s*(.+?)(?:\n|$)",
-            r"\$\$(.+?)\$\$",
-            r"####\s*(.+?)(?:\n|$)",
         ]
         
         for pattern in patterns:

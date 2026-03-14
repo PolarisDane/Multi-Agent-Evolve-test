@@ -497,6 +497,9 @@ azr:
   proposer_entropy_coeff: null
   solver_entropy_coeff: null
   judge_entropy_coeff: null
+  proposer_temperature: 1.0
+  solver_temperature: 0.7
+  judge_temperature: 0.1
   init_dataset_size: 1000
   with_answer_generation: False
   

@@ -83,19 +83,47 @@ def get_gt_reward(solution_str: str, ground_truth: str, extraction_type: str, me
         raise ValueError(f"Invalid metric: {metric}")
 
 
+    def _extract_model_answer(self, generation: str) -> str:
+        """Extract the model's answer from the generation."""
+        generation = generation.strip()
+        
+        patterns = [
+            r"<answer>(.*?)</answer>",
+        ]
+        
+        for pattern in patterns:
+            match = re.search(pattern, generation, re.IGNORECASE | re.DOTALL)
+            if match:
+                return match.group(1).strip()
+        
+        # If no specific pattern found, use the last line or last sentence
+        lines = generation.split('\n')
+        for line in reversed(lines):
+            line = line.strip()
+            if line and not line.startswith('(') and len(line) < 200:
+                return line
+        
+        # Fallback to first 100 characters
+        return generation[:100] + "..." if len(generation) > 100 else generation
+
 def extract_answer(solution_str: str, extraction_type: str, boxed_retry: bool = False) -> str:
     if extraction_type.startswith('answer'):
-        if "<answer>" in solution_str:
+        if "<answer>" in solution_str and "</answer>" in solution_str:
             answer = solution_str.split("<answer>")[-1].split("</answer>")[0]
         else:
             if boxed_retry:
-                boxed_answer = last_boxed_only_string(solution_str)
-                answer = boxed_answer if boxed_answer is not None else solution_str
+                answer = last_boxed_only_string(solution_str)
             else:
-                return ''
+                answer = None
+        if answer is None:
+            lines = solution_str.split('\n')
+            for line in reversed(lines):
+                line = line.strip()
+                if line and len(line) < 200:
+                    answer = line
+                    break
         # Strip LaTeX math delimiters and whitespace
-        answer = answer.strip()
-        return answer
+        return answer.strip() if answer is not None else None
     elif extraction_type.startswith('boxed'):
         answer = last_boxed_only_string(solution_str)
         return answer.strip() if answer is not None else ''

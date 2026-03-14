@@ -534,7 +534,7 @@ class ReasonRLRayPPOTrainer(RayPPOTrainer):
 
                 self.benchmark_dataloader = DataLoader(
                     dataset=benchmark_dataset,
-                    batch_size=min(len(benchmark_dataset), 100),  # Use reasonable batch size
+                    batch_size=min(len(benchmark_dataset), 500),  # Use reasonable batch size
                     shuffle=False,
                     drop_last=False,
                     collate_fn=collate_fn

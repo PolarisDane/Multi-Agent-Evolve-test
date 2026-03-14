@@ -9,7 +9,7 @@ export HYDRA_FULL_ERROR=1
 export CUDA_VISIBLE_DEVICES="0,1,2,3,4,5,6,7"
 export HF_HUB_OFFLINE=1
 export WANDB_MODE=offline
-export NCCL_NVLS_ENABLE=0
+# export NCCL_NVLS_ENABLE=0
 # export NCCL_P2P_DISABLE=1
 
 python -m absolute_zero_reasoner.main_azr_ppo \
@@ -26,7 +26,7 @@ python -m absolute_zero_reasoner.main_azr_ppo \
     data.max_validation_prompt_length=6144 \
     data.max_response_length=8192 \
     actor_rollout_ref.model.path=/inspire/hdd/project/robot-reasoning/xuyue-p-xuyue/ziyu/.cache/huggingface/hub/models--Qwen--Qwen2.5-3B-Instruct \
-    actor_rollout_ref.actor.optim.lr=1e-6 \
+    actor_rollout_ref.actor.optim.lr=5e-7 \
     actor_rollout_ref.model.use_remove_padding=True \
     actor_rollout_ref.actor.ppo_mini_batch_size=64 \
     actor_rollout_ref.actor.ppo_micro_batch_size_per_gpu=32 \
@@ -45,7 +45,8 @@ python -m absolute_zero_reasoner.main_azr_ppo \
     actor_rollout_ref.rollout.n=1 \
     actor_rollout_ref.rollout.temperature=1.0 \
     actor_rollout_ref.ref.fsdp_config.param_offload=False \
-    algorithm.kl_ctrl.kl_coef=0.0 \
+    algorithm.use_kl_in_reward=True \
+    algorithm.kl_ctrl.kl_coef=0.01 \
     trainer.default_local_dir=/inspire/hdd/project/robot-reasoning/xuyue-p-xuyue/cy/Multi-agent-evolve/checkpoints \
     trainer.critic_warmup=0 \
     trainer.logger=['console','wandb'] \
@@ -58,7 +59,8 @@ python -m absolute_zero_reasoner.main_azr_ppo \
     trainer.del_local_ckpt_after_load=True \
     trainer.test_freq=500 \
     trainer.val_before_train=false \
-    reward_fn.extraction_type=boxed \
+    reward_fn.extraction_type=answer \
+    reward_fn.boxed_retry=True \
     reward_fn.math_metric=deepscaler \
     reward_fn.llm_model_name="nvidia/llama-3.1-nemotron-70b-instruct" \
     reward_fn.temperature=1.0 \
@@ -75,15 +77,19 @@ python -m absolute_zero_reasoner.main_azr_ppo \
     azr.train_solve=True \
     azr.with_answer_generation=False \
     azr.train_propose=True \
-    azr.reward.n_samples=3 \
+    azr.reward.n_samples=5 \
     azr.reward.generation_reward_config.format_reward=false \
-    azr.reward.generation_reward_config.include_references=0.5 \
+    azr.reward.generation_reward_config.include_references=0 \
     azr.reward.generation_reward_config.generation_accuracy_convertion=inverse \
     azr.reward.generation_reward_config.answer_diversity_reward.hierarchical=false \
     azr.data_selection_strategy.content_max_length=8192 \
     azr.data_selection_strategy.valid_question_filter=all \
     azr.data_selection_strategy.batched_estimate=false \
     azr.data_selection_strategy.io_n=1 \
+    azr.init_dataset_size=16 \
+    +azr.reward.diversity_reward_config.enabled=True \
+    +azr.reward.diversity_reward_config.threshold=0.7 \
+    +azr.reward.diversity_reward_config.penalty=0.3 \
     trainer.resume_mode=disable \
     trainer.total_epochs=30 \
-    +prompt_manager.template_file=absolute_zero_reasoner/data_construction/initial_prompt_templates/default.json $@
+    +prompt_manager.template_file=absolute_zero_reasoner/data_construction/initial_prompt_templates/default2.json $@

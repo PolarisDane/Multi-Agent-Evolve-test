@@ -200,7 +200,8 @@ class TaskRunner:
         if config.actor_rollout_ref.actor.strategy in ["fsdp", "fsdp2"]:
             assert config.critic.strategy in ["fsdp", "fsdp2"]
             from verl.single_controller.ray import RayWorkerGroup
-            from verl.workers.fsdp_workers import ActorRolloutRefWorker, AsyncActorRolloutRefWorker, CriticWorker
+            from verl.workers.fsdp_workers import AsyncActorRolloutRefWorker, CriticWorker
+            from absolute_zero_reasoner.workers.custom_fsdp_workers import CustomActorRolloutRefWorker as ActorRolloutRefWorker
 
             actor_rollout_cls = AsyncActorRolloutRefWorker if config.actor_rollout_ref.rollout.mode == "async" else ActorRolloutRefWorker
             ray_worker_group_cls = RayWorkerGroup
