@@ -31,7 +31,8 @@ def get_gen_general_io_data(
     weights: List[float] = None,
     include_references: float = 1.0,
     with_answer_generation: bool = True,
-    prompt_manager = None,  # Add prompt manager parameter
+    prompt_manager = None,
+    seed_instruction_ratio: float = 0.0,
 ):
     return_io_data = []
 
@@ -57,7 +58,11 @@ def get_gen_general_io_data(
         p_include = max(0.0, min(1.0, p_include))
     except Exception:
         p_include = 1.0
-    print(f"[DEBUG] get_gen_general_io_data: include_references probability = {p_include}")
+    try:
+        p_seed = max(0.0, min(1.0, float(seed_instruction_ratio)))
+    except Exception:
+        p_seed = 0.0
+    print(f"[DEBUG] get_gen_general_io_data: include_references probability = {p_include}, seed_instruction_ratio = {p_seed}")
 
     idx = 0
     max_attempts = max(5 * target_data_len, 100)
@@ -68,10 +73,17 @@ def get_gen_general_io_data(
 
         include_refs_this_round = (np.random.rand() < p_include)
 
+        use_seed_this_round = False
+        if not include_refs_this_round and p_seed > 0:
+            use_seed_this_round = (np.random.rand() < p_seed)
+
         if include_refs_this_round:
             instruction_template = prompt_manager.get_proposer_instruction(ref=True, with_answer_generation=with_answer_generation)
         else:
-            instruction_template = prompt_manager.get_proposer_instruction(ref=False, with_answer_generation=with_answer_generation)
+            instruction_template = prompt_manager.get_proposer_instruction(
+                ref=False, with_answer_generation=with_answer_generation,
+                use_seed=use_seed_this_round,
+            )
 
         if not include_refs_this_round:
             chosen_references = []
@@ -103,6 +115,7 @@ def get_gen_general_io_data(
                     'index': idx,
                     'metric': 'gen_general',
                     'chosen_references': chosen_references,
+                    'used_seed_instruction': use_seed_this_round,
                 }
             }
             return_io_data.append(io_item)

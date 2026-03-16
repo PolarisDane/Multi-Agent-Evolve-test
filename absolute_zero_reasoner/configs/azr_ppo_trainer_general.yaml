@@ -520,10 +520,12 @@ azr:
     valid_question_filter: all
     batched_estimate: False
     
+  seed_instructions_file: null  # Path to seed instructions JSON; null uses default built-in file
   reward:
     generation_reward_config:
       format_reward: false  # No format reward for general tasks
       include_references: false # This value decides the setting of no-ref, half-ref and with-ref
+      seed_instruction_ratio: 0.0 # When noref, probability of using a seed topic instruction (0.0 = never, 1.0 = always when noref)
       generation_accuracy_convertion: "inverse"
       answer_diversity_reward:
         hierarchical: false

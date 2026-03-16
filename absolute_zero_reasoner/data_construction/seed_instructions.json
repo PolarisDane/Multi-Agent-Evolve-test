@@ -1,0 +1,518 @@
+{
+  "metadata": {
+    "description": "Seed topic instructions for diversified problem generation. Each instruction provides a domain-specific hint to guide the proposer toward generating problems in a particular area.",
+    "version": "1.0"
+  },
+  "seed_instructions": [
+    {
+      "id": "math_arithmetic",
+      "domain": "Mathematics",
+      "subdomain": "Arithmetic & Number Operations",
+      "instruction": "Create a problem involving multi-step arithmetic operations, potentially with large numbers, fractions, decimals, or mixed operations where order of operations matters critically."
+    },
+    {
+      "id": "math_number_theory",
+      "domain": "Mathematics",
+      "subdomain": "Number Theory",
+      "instruction": "Create a problem about number theory concepts such as prime factorization, divisibility rules, GCD/LCM, modular arithmetic, Euler's totient function, or Diophantine equations."
+    },
+    {
+      "id": "math_algebra_linear",
+      "domain": "Mathematics",
+      "subdomain": "Linear Algebra & Systems of Equations",
+      "instruction": "Create a problem involving systems of linear equations, matrix operations, determinants, eigenvalues, vector spaces, or linear transformations."
+    },
+    {
+      "id": "math_algebra_polynomial",
+      "domain": "Mathematics",
+      "subdomain": "Polynomial & Abstract Algebra",
+      "instruction": "Create a problem about polynomials, factoring, roots of equations, Vieta's formulas, symmetric polynomials, or algebraic structures like groups and rings."
+    },
+    {
+      "id": "math_geometry_euclidean",
+      "domain": "Mathematics",
+      "subdomain": "Euclidean Geometry",
+      "instruction": "Create a problem in Euclidean geometry involving triangles, circles, polygons, angle relationships, congruence, similarity, or geometric constructions requiring multi-step proofs or calculations."
+    },
+    {
+      "id": "math_geometry_coordinate",
+      "domain": "Mathematics",
+      "subdomain": "Coordinate & Analytic Geometry",
+      "instruction": "Create a problem involving coordinate geometry such as distances, midpoints, slopes, conic sections (parabolas, ellipses, hyperbolas), or transformations in the coordinate plane."
+    },
+    {
+      "id": "math_geometry_3d",
+      "domain": "Mathematics",
+      "subdomain": "3D Geometry & Solid Geometry",
+      "instruction": "Create a problem about 3D geometry including volumes, surface areas, cross-sections of solids, spatial relationships between planes and lines, or polyhedra properties."
+    },
+    {
+      "id": "math_combinatorics",
+      "domain": "Mathematics",
+      "subdomain": "Combinatorics & Counting",
+      "instruction": "Create a problem about combinatorics involving permutations, combinations, the pigeonhole principle, inclusion-exclusion, generating functions, or counting with constraints."
+    },
+    {
+      "id": "math_probability",
+      "domain": "Mathematics",
+      "subdomain": "Probability",
+      "instruction": "Create a problem about probability involving conditional probability, Bayes' theorem, expected value, geometric or recursive probability, combinatorial probability, or Markov chains."
+    },
+    {
+      "id": "math_statistics",
+      "domain": "Mathematics",
+      "subdomain": "Statistics & Data Analysis",
+      "instruction": "Create a problem involving statistical concepts such as mean, median, mode, standard deviation, distributions, hypothesis testing, confidence intervals, or regression analysis."
+    },
+    {
+      "id": "math_calculus_differential",
+      "domain": "Mathematics",
+      "subdomain": "Differential Calculus",
+      "instruction": "Create a problem involving derivatives, rates of change, optimization, related rates, L'Hôpital's rule, Taylor series, or differential equations."
+    },
+    {
+      "id": "math_calculus_integral",
+      "domain": "Mathematics",
+      "subdomain": "Integral Calculus",
+      "instruction": "Create a problem involving definite or indefinite integrals, integration techniques (substitution, parts, partial fractions), area/volume calculations, or improper integrals."
+    },
+    {
+      "id": "math_sequences",
+      "domain": "Mathematics",
+      "subdomain": "Sequences & Series",
+      "instruction": "Create a problem about sequences and series including arithmetic/geometric progressions, recursive sequences, convergence, telescoping sums, or finding closed-form expressions."
+    },
+    {
+      "id": "math_inequalities",
+      "domain": "Mathematics",
+      "subdomain": "Inequalities & Optimization",
+      "instruction": "Create a problem involving mathematical inequalities such as AM-GM, Cauchy-Schwarz, Jensen's inequality, or constrained optimization problems."
+    },
+    {
+      "id": "math_competition_nt",
+      "domain": "Mathematics",
+      "subdomain": "Competition Number Theory",
+      "instruction": "Create a competition-style number theory problem involving modular arithmetic, Fermat's little theorem, Chinese Remainder Theorem, quadratic residues, or digit-related problems."
+    },
+    {
+      "id": "math_competition_combo",
+      "domain": "Mathematics",
+      "subdomain": "Competition Combinatorics",
+      "instruction": "Create a competition-style combinatorics problem involving graph coloring, extremal combinatorics, Ramsey theory, bijective proofs, or combinatorial game theory."
+    },
+    {
+      "id": "math_trigonometry",
+      "domain": "Mathematics",
+      "subdomain": "Trigonometry",
+      "instruction": "Create a problem involving trigonometric identities, equations, inverse trig functions, law of sines/cosines, or trigonometric substitution in complex expressions."
+    },
+    {
+      "id": "math_complex_numbers",
+      "domain": "Mathematics",
+      "subdomain": "Complex Numbers",
+      "instruction": "Create a problem involving complex numbers, their geometric interpretation, roots of unity, De Moivre's theorem, or complex number equations."
+    },
+    {
+      "id": "math_word_problem_rate",
+      "domain": "Mathematics",
+      "subdomain": "Word Problems - Rates & Proportions",
+      "instruction": "Create a multi-step word problem involving rates, ratios, proportions, speed/distance/time, work problems, or mixture problems requiring careful setup of equations."
+    },
+    {
+      "id": "math_word_problem_finance",
+      "domain": "Mathematics",
+      "subdomain": "Word Problems - Financial & Percentage",
+      "instruction": "Create a word problem involving percentages, profit/loss, compound interest, tax calculations, discounts, or financial reasoning requiring multiple steps."
+    },
+    {
+      "id": "logic_propositional",
+      "domain": "Logic & Reasoning",
+      "subdomain": "Propositional & Formal Logic",
+      "instruction": "Create a problem involving propositional logic, truth tables, logical equivalences, formal proofs, or evaluating complex boolean expressions with multiple variables."
+    },
+    {
+      "id": "logic_deductive",
+      "domain": "Logic & Reasoning",
+      "subdomain": "Deductive Reasoning & Constraint Satisfaction",
+      "instruction": "Create a deductive reasoning puzzle where multiple clues constrain the solution, such as logic grid puzzles, scheduling problems, or 'who owns the fish'-style problems."
+    },
+    {
+      "id": "logic_inductive",
+      "domain": "Logic & Reasoning",
+      "subdomain": "Pattern Recognition & Inductive Reasoning",
+      "instruction": "Create a problem that requires recognizing patterns in sequences of numbers, shapes, or symbols, and using inductive reasoning to predict the next element or find the underlying rule."
+    },
+    {
+      "id": "logic_causal",
+      "domain": "Logic & Reasoning",
+      "subdomain": "Causal & Counterfactual Reasoning",
+      "instruction": "Create a problem involving causal reasoning, where one must determine cause-and-effect relationships, evaluate counterfactual scenarios, or reason about interventions in a system."
+    },
+    {
+      "id": "logic_spatial",
+      "domain": "Logic & Reasoning",
+      "subdomain": "Spatial Reasoning",
+      "instruction": "Create a spatial reasoning problem involving relative positions, directions, rotations, reflections, mental rotation of objects, or navigation through a described space."
+    },
+    {
+      "id": "logic_temporal",
+      "domain": "Logic & Reasoning",
+      "subdomain": "Temporal Reasoning & Scheduling",
+      "instruction": "Create a problem involving temporal reasoning such as ordering events, scheduling with constraints, time zone calculations, or determining durations from described sequences of events."
+    },
+    {
+      "id": "logic_graph_theory",
+      "domain": "Logic & Reasoning",
+      "subdomain": "Graph Theory & Network Reasoning",
+      "instruction": "Create a problem about graph theory concepts such as paths, cycles, connectivity, graph coloring, minimum spanning trees, shortest paths, or network flow."
+    },
+    {
+      "id": "logic_set_theory",
+      "domain": "Logic & Reasoning",
+      "subdomain": "Set Theory & Venn Diagrams",
+      "instruction": "Create a problem involving set operations, Venn diagrams, cardinality arguments, subset relationships, or problems that require systematic enumeration of set elements."
+    },
+    {
+      "id": "logic_game_theory",
+      "domain": "Logic & Reasoning",
+      "subdomain": "Game Theory & Strategic Reasoning",
+      "instruction": "Create a problem involving game theory, optimal strategy, minimax, Nash equilibrium, or a two-player game where one must determine winning strategies or outcomes."
+    },
+    {
+      "id": "logic_cryptarithmetic",
+      "domain": "Logic & Reasoning",
+      "subdomain": "Cryptarithmetic & Cipher Puzzles",
+      "instruction": "Create a cryptarithmetic puzzle or cipher problem where letters stand for digits in an arithmetic equation, and the solver must determine the unique assignment of digits to letters."
+    },
+    {
+      "id": "cs_algorithm_design",
+      "domain": "Computer Science",
+      "subdomain": "Algorithm Design & Analysis",
+      "instruction": "Create a problem about designing or analyzing algorithms, including time/space complexity analysis, greedy algorithms, divide-and-conquer, or algorithm correctness proofs."
+    },
+    {
+      "id": "cs_dynamic_programming",
+      "domain": "Computer Science",
+      "subdomain": "Dynamic Programming",
+      "instruction": "Create a problem solvable with dynamic programming, involving optimal substructure and overlapping subproblems, such as knapsack variants, edit distance, or path counting."
+    },
+    {
+      "id": "cs_data_structures",
+      "domain": "Computer Science",
+      "subdomain": "Data Structures",
+      "instruction": "Create a problem involving data structure operations such as tree traversals, heap operations, hash table analysis, balanced BST rotations, or stack/queue simulations."
+    },
+    {
+      "id": "cs_recursion",
+      "domain": "Computer Science",
+      "subdomain": "Recursion & Backtracking",
+      "instruction": "Create a problem that requires recursive thinking or backtracking, such as generating permutations, solving constraint satisfaction problems, or analyzing recursive function behavior."
+    },
+    {
+      "id": "cs_boolean_expressions",
+      "domain": "Computer Science",
+      "subdomain": "Boolean & Bitwise Operations",
+      "instruction": "Create a problem involving boolean algebra, bitwise operations, binary representations, bit manipulation tricks, or evaluating complex boolean/bitwise expressions."
+    },
+    {
+      "id": "cs_automata",
+      "domain": "Computer Science",
+      "subdomain": "Automata & Formal Languages",
+      "instruction": "Create a problem about finite automata, regular expressions, context-free grammars, state machine simulation, or determining what language a given automaton accepts."
+    },
+    {
+      "id": "science_physics_mechanics",
+      "domain": "Science",
+      "subdomain": "Classical Mechanics",
+      "instruction": "Create a physics problem involving kinematics, Newton's laws, energy conservation, momentum, rotational dynamics, or multi-body systems requiring careful free-body analysis."
+    },
+    {
+      "id": "science_physics_em",
+      "domain": "Science",
+      "subdomain": "Electromagnetism",
+      "instruction": "Create a physics problem involving electric fields, circuits, magnetic forces, electromagnetic induction, or Gauss's/Ampere's law applications."
+    },
+    {
+      "id": "science_physics_thermo",
+      "domain": "Science",
+      "subdomain": "Thermodynamics & Statistical Mechanics",
+      "instruction": "Create a physics problem involving thermodynamic processes, heat engines, entropy, ideal gas law, or statistical mechanics concepts."
+    },
+    {
+      "id": "science_physics_waves",
+      "domain": "Science",
+      "subdomain": "Waves & Optics",
+      "instruction": "Create a physics problem about wave phenomena, interference, diffraction, sound waves, optics (lenses, mirrors), or the Doppler effect."
+    },
+    {
+      "id": "science_chemistry_general",
+      "domain": "Science",
+      "subdomain": "General & Inorganic Chemistry",
+      "instruction": "Create a chemistry problem involving stoichiometry, chemical equilibrium, acid-base reactions, oxidation-reduction, or periodic table trends."
+    },
+    {
+      "id": "science_chemistry_organic",
+      "domain": "Science",
+      "subdomain": "Organic Chemistry",
+      "instruction": "Create a problem about organic chemistry involving reaction mechanisms, functional group transformations, stereochemistry, or synthesis planning."
+    },
+    {
+      "id": "science_biology_molecular",
+      "domain": "Science",
+      "subdomain": "Molecular Biology & Genetics",
+      "instruction": "Create a problem about molecular biology such as DNA replication, gene expression, Mendelian genetics, pedigree analysis, or population genetics calculations."
+    },
+    {
+      "id": "science_biology_ecology",
+      "domain": "Science",
+      "subdomain": "Ecology & Evolution",
+      "instruction": "Create a problem involving ecological concepts such as population dynamics, food webs, carrying capacity, natural selection, or Hardy-Weinberg equilibrium calculations."
+    },
+    {
+      "id": "science_earth",
+      "domain": "Science",
+      "subdomain": "Earth & Environmental Science",
+      "instruction": "Create a problem about earth science topics such as plate tectonics, atmospheric science, climate systems, geological time, or environmental impact analysis."
+    },
+    {
+      "id": "comprehension_reading",
+      "domain": "Language & Comprehension",
+      "subdomain": "Reading Comprehension & Information Extraction",
+      "instruction": "Create a reading comprehension task with a short passage followed by questions that require extracting specific information, making inferences, or identifying the main idea."
+    },
+    {
+      "id": "comprehension_nli",
+      "domain": "Language & Comprehension",
+      "subdomain": "Natural Language Inference",
+      "instruction": "Create a natural language inference problem where given a premise, one must determine whether a hypothesis is entailed, contradicted, or neutral."
+    },
+    {
+      "id": "comprehension_analogy",
+      "domain": "Language & Comprehension",
+      "subdomain": "Analogical Reasoning",
+      "instruction": "Create an analogy problem (A:B :: C:?) that tests understanding of semantic relationships such as part-whole, cause-effect, function, or degree relationships."
+    },
+    {
+      "id": "commonsense_physical",
+      "domain": "Commonsense Reasoning",
+      "subdomain": "Physical & Everyday Commonsense",
+      "instruction": "Create a problem that tests physical commonsense such as understanding how objects interact, what happens in everyday scenarios, or predicting physical outcomes of described situations."
+    },
+    {
+      "id": "commonsense_social",
+      "domain": "Commonsense Reasoning",
+      "subdomain": "Social & Situational Commonsense",
+      "instruction": "Create a problem testing social commonsense such as predicting human behavior in social situations, understanding motivations, emotions, or social norms."
+    },
+    {
+      "id": "commonsense_causal_everyday",
+      "domain": "Commonsense Reasoning",
+      "subdomain": "Everyday Causal Reasoning",
+      "instruction": "Create a problem where one must reason about cause and effect in everyday situations, predict what happens next, or determine the most likely explanation for an observed outcome."
+    },
+    {
+      "id": "knowledge_history",
+      "domain": "Knowledge",
+      "subdomain": "History & Geography",
+      "instruction": "Create a knowledge-based reasoning problem about historical events, geographical facts, timelines, or cause-and-effect relationships in history that requires multi-step reasoning rather than simple recall."
+    },
+    {
+      "id": "knowledge_science_facts",
+      "domain": "Knowledge",
+      "subdomain": "Scientific Knowledge & Reasoning",
+      "instruction": "Create a problem that requires applying scientific knowledge (physics, chemistry, biology) to reason about a described scenario, rather than simple fact recall."
+    },
+    {
+      "id": "knowledge_economics",
+      "domain": "Knowledge",
+      "subdomain": "Economics & Social Science",
+      "instruction": "Create a problem involving economic reasoning such as supply and demand analysis, game-theoretic market scenarios, cost-benefit analysis, or basic economic modeling."
+    },
+    {
+      "id": "knowledge_law_ethics",
+      "domain": "Knowledge",
+      "subdomain": "Legal & Ethical Reasoning",
+      "instruction": "Create a problem involving legal or ethical reasoning where one must analyze a scenario, identify relevant principles, and reach a well-justified conclusion."
+    },
+    {
+      "id": "planning_constraint",
+      "domain": "Planning & Optimization",
+      "subdomain": "Constraint Satisfaction & Planning",
+      "instruction": "Create a planning problem with multiple constraints that must be satisfied simultaneously, such as scheduling, resource allocation, or route planning."
+    },
+    {
+      "id": "planning_optimization",
+      "domain": "Planning & Optimization",
+      "subdomain": "Optimization Under Constraints",
+      "instruction": "Create an optimization problem where one must maximize or minimize an objective function subject to given constraints, such as linear programming or bin packing."
+    },
+    {
+      "id": "planning_multi_step",
+      "domain": "Planning & Optimization",
+      "subdomain": "Multi-Step Planning & Strategy",
+      "instruction": "Create a multi-step planning problem where the solver must devise a sequence of actions to achieve a goal, considering dependencies between steps and resource limitations."
+    },
+    {
+      "id": "instruction_following_format",
+      "domain": "Instruction Following",
+      "subdomain": "Format-Constrained Generation",
+      "instruction": "Create a task that requires generating output in a very specific format with multiple constraints on structure, length, content, and style that must all be satisfied simultaneously."
+    },
+    {
+      "id": "instruction_following_multi",
+      "domain": "Instruction Following",
+      "subdomain": "Multi-Constraint Task Execution",
+      "instruction": "Create a task with many simultaneous constraints (e.g., write something that satisfies 5+ requirements about content, format, vocabulary, and structure)."
+    },
+    {
+      "id": "puzzle_word",
+      "domain": "Puzzles",
+      "subdomain": "Word & Language Puzzles",
+      "instruction": "Create a word puzzle such as anagrams, word ladders, crossword-style clues, palindrome construction, or constrained word generation."
+    },
+    {
+      "id": "puzzle_math_brain",
+      "domain": "Puzzles",
+      "subdomain": "Mathematical Brain Teasers",
+      "instruction": "Create a mathematical brain teaser that appears simple but requires careful reasoning, such as clock problems, age puzzles, or problems with surprising answers."
+    },
+    {
+      "id": "puzzle_river_crossing",
+      "domain": "Puzzles",
+      "subdomain": "Classic Logic Puzzles",
+      "instruction": "Create a classic-style logic puzzle such as river crossing, truth-teller/liar problems, weighing puzzles, or hat color puzzles that require careful logical deduction."
+    },
+    {
+      "id": "puzzle_grid",
+      "domain": "Puzzles",
+      "subdomain": "Grid & Arrangement Puzzles",
+      "instruction": "Create a grid-based or arrangement puzzle such as Sudoku-style constraints, magic squares, tiling problems, or placing objects with proximity constraints."
+    },
+    {
+      "id": "math_discrete",
+      "domain": "Mathematics",
+      "subdomain": "Discrete Mathematics",
+      "instruction": "Create a problem in discrete mathematics involving recurrence relations, generating functions, graph enumeration, or combinatorial proofs."
+    },
+    {
+      "id": "math_functions",
+      "domain": "Mathematics",
+      "subdomain": "Functions & Functional Equations",
+      "instruction": "Create a problem about function properties (injectivity, surjectivity), composition, inverse functions, functional equations, or piecewise-defined functions."
+    },
+    {
+      "id": "math_logarithms",
+      "domain": "Mathematics",
+      "subdomain": "Logarithms & Exponentials",
+      "instruction": "Create a problem involving logarithmic or exponential equations, change of base, logarithmic identities, or growth/decay models."
+    },
+    {
+      "id": "cs_graph_algorithms",
+      "domain": "Computer Science",
+      "subdomain": "Graph Algorithms",
+      "instruction": "Create a problem involving graph algorithm concepts such as BFS/DFS traversal, shortest path (Dijkstra, Bellman-Ford), topological sort, or strongly connected components."
+    },
+    {
+      "id": "cs_complexity",
+      "domain": "Computer Science",
+      "subdomain": "Computational Complexity",
+      "instruction": "Create a problem about computational complexity: comparing algorithm efficiencies, identifying time complexity of code snippets, or reasoning about P vs NP concepts."
+    },
+    {
+      "id": "math_probability_advanced",
+      "domain": "Mathematics",
+      "subdomain": "Advanced Probability & Stochastic Processes",
+      "instruction": "Create a problem involving advanced probability concepts such as random walks, Markov chains, expected value with nested conditions, or the probabilistic method."
+    },
+    {
+      "id": "science_astronomy",
+      "domain": "Science",
+      "subdomain": "Astronomy & Astrophysics",
+      "instruction": "Create a problem about astronomical calculations such as orbital mechanics, stellar properties, distance measurements, or cosmological reasoning."
+    },
+    {
+      "id": "math_proof_technique",
+      "domain": "Mathematics",
+      "subdomain": "Proof Techniques",
+      "instruction": "Create a problem that requires applying proof techniques such as mathematical induction, proof by contradiction, proof by contrapositive, or constructive proofs."
+    },
+    {
+      "id": "logic_knights_knaves",
+      "domain": "Logic & Reasoning",
+      "subdomain": "Knights and Knaves / Truth-Teller Problems",
+      "instruction": "Create a knights-and-knaves style logic puzzle where some agents always tell the truth and some always lie, and the solver must determine who is who or deduce a hidden fact."
+    },
+    {
+      "id": "math_modular_arithmetic",
+      "domain": "Mathematics",
+      "subdomain": "Modular Arithmetic & Congruences",
+      "instruction": "Create a problem specifically about modular arithmetic, congruence equations, Chinese Remainder Theorem applications, or finding remainders of large expressions."
+    },
+    {
+      "id": "planning_resource_allocation",
+      "domain": "Planning & Optimization",
+      "subdomain": "Resource Allocation & Scheduling",
+      "instruction": "Create a resource allocation or job scheduling problem where multiple tasks must be assigned to limited resources with constraints on time, capacity, or ordering."
+    },
+    {
+      "id": "math_geometry_trigonometric",
+      "domain": "Mathematics",
+      "subdomain": "Geometric Trigonometry",
+      "instruction": "Create a problem combining geometry and trigonometry, such as finding areas using trigonometric formulas, inscribed/circumscribed circle problems, or triangle center calculations."
+    },
+    {
+      "id": "science_physics_modern",
+      "domain": "Science",
+      "subdomain": "Modern Physics & Quantum Mechanics",
+      "instruction": "Create a problem involving modern physics concepts such as special relativity, quantum mechanics basics, wave-particle duality, or atomic physics calculations."
+    },
+    {
+      "id": "commonsense_numerical",
+      "domain": "Commonsense Reasoning",
+      "subdomain": "Numerical Commonsense & Estimation",
+      "instruction": "Create a problem requiring numerical commonsense or Fermi estimation, where one must use approximate knowledge about quantities in the real world to reason about a question."
+    },
+    {
+      "id": "logic_conditional",
+      "domain": "Logic & Reasoning",
+      "subdomain": "Conditional & Hypothetical Reasoning",
+      "instruction": "Create a problem involving reasoning with conditional statements (if-then), contrapositive reasoning, necessary vs sufficient conditions, or chains of implications."
+    },
+    {
+      "id": "math_probability_combinatorial",
+      "domain": "Mathematics",
+      "subdomain": "Combinatorial Probability",
+      "instruction": "Create a probability problem that requires counting favorable outcomes using combinatorial techniques, such as card drawing, dice rolling with constraints, or urn models."
+    },
+    {
+      "id": "puzzle_encoding",
+      "domain": "Puzzles",
+      "subdomain": "Encoding & Decoding Puzzles",
+      "instruction": "Create a problem involving encoding, decoding, or cipher-like transformations where the solver must figure out the transformation rule and apply it to decode or encode a message."
+    },
+    {
+      "id": "cs_string_manipulation",
+      "domain": "Computer Science",
+      "subdomain": "String Processing & Pattern Matching",
+      "instruction": "Create a problem about string manipulation, pattern matching, regular expressions, substring search, or string transformation algorithms."
+    },
+    {
+      "id": "math_matrix_operations",
+      "domain": "Mathematics",
+      "subdomain": "Matrix & Linear Systems",
+      "instruction": "Create a problem involving matrix multiplication, matrix powers, solving linear systems, matrix inversion, or analyzing properties of specific matrices."
+    },
+    {
+      "id": "logic_paradox",
+      "domain": "Logic & Reasoning",
+      "subdomain": "Paradoxes & Critical Thinking",
+      "instruction": "Create a problem that involves resolving apparent paradoxes, identifying logical fallacies, or critically analyzing arguments that seem valid but contain subtle errors."
+    },
+    {
+      "id": "math_competition_geometry",
+      "domain": "Mathematics",
+      "subdomain": "Competition Geometry",
+      "instruction": "Create an olympiad-style geometry problem involving cyclic quadrilaterals, radical axes, projective properties, or elegant constructions requiring creative auxiliary lines."
+    }
+  ]
+}

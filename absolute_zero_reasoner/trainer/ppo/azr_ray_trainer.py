@@ -779,7 +779,8 @@ class GeneralIORayPPOTrainer(ReasonRLRayPPOTrainer):
             weights=weights,
             include_references=self.config.azr.reward.generation_reward_config.include_references,
             with_answer_generation=self.config.azr.get("with_answer_generation", True),
-            prompt_manager=self.prompt_manager,  # Pass prompt manager
+            prompt_manager=self.prompt_manager,
+            seed_instruction_ratio=self.config.azr.reward.generation_reward_config.get("seed_instruction_ratio", 0.0),
         )
 
         gen_train_dataset = RLHFDataset(
