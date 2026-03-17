@@ -944,6 +944,106 @@ import json
 import numpy as np
 import random
 
+class DiversityFilter:
+    def __init__(self, 
+                 device='cuda', 
+                 model_name='sentence-transformers/all-MiniLM-L6-v2', 
+                 threshold=0.8, 
+                 penalty=0.5, 
+                 max_pool_size=1000,
+                 cache_dir="/inspire/hdd/project/robot-reasoning/xuyue-p-xuyue/ziyu/.cache/huggingface/hub"):
+        
+        if device == 'cuda' and not torch.cuda.is_available():
+            print("Warning: CUDA requested but not available (likely running on Controller). Falling back to CPU for DiversityFilter.")
+            device = 'cpu'
+            
+        self.device = device
+        self.model_name = model_name
+        self.threshold = threshold
+        self.penalty = penalty
+        self.max_pool_size = max_pool_size
+        self.cache_dir = cache_dir
+        self.pool_embeddings = None # Tensor [N, D]
+        self.pool_texts = []
+        self.model = None
+        self.tokenizer = None
+
+    def _load_model(self):
+        if self.model is None:
+            from transformers import AutoModel, AutoTokenizer
+            try:
+                self.tokenizer = AutoTokenizer.from_pretrained(self.model_name, cache_dir=self.cache_dir)
+                self.model = AutoModel.from_pretrained(self.model_name, cache_dir=self.cache_dir).to(self.device)
+                self.model.eval()
+                print(f"Loaded embedding model on device: {self.device}")
+            except Exception as e:
+                print(f"Failed to load embedding model {self.model_name} from {self.cache_dir}: {e}")
+                pass
+
+    def compute_embeddings(self, texts):
+        self._load_model()
+        if self.model is None or self.tokenizer is None:
+            return None
+        
+        # Batch processing
+        batch_size = 32
+        all_embeddings = []
+        
+        for i in range(0, len(texts), batch_size):
+            batch_texts = texts[i:i+batch_size]
+            try:
+                inputs = self.tokenizer(batch_texts, padding=True, truncation=True, return_tensors="pt", max_length=128).to(self.device)
+                
+                with torch.no_grad():
+                    outputs = self.model(**inputs)
+                
+                # Mean pooling
+                embeddings = outputs.last_hidden_state.mean(dim=1)
+                embeddings = torch.nn.functional.normalize(embeddings, p=2, dim=1)
+                all_embeddings.append(embeddings)
+            except Exception as e:
+                print(f"Error computing embeddings: {e}")
+                return None
+            
+        return torch.cat(all_embeddings, dim=0)
+
+    def filter_and_update(self, new_texts):
+        if not new_texts:
+            return []
+        
+        new_embeddings = self.compute_embeddings(new_texts)
+        if new_embeddings is None:
+            return [0.0] * len(new_texts)
+            
+        penalties = torch.zeros(len(new_texts), device=self.device)
+        
+        if self.pool_embeddings is not None:
+            # Compute cosine similarity: [B, D] @ [P, D]^T -> [B, P]
+            sim_matrix = torch.mm(new_embeddings, self.pool_embeddings.t())
+            max_sim, _ = sim_matrix.max(dim=1)
+            
+            # Apply penalty proportionally where similarity > threshold
+            # Scale from 0 (at threshold) to 1 (at 1.0) * penalty
+            excess_sim = torch.clamp(max_sim - self.threshold, min=0.0)
+            normalized_excess = excess_sim / (1.0 - self.threshold + 1e-6)
+            penalties = normalized_excess * self.penalty
+            
+        # Update pool
+        if self.pool_embeddings is None:
+            self.pool_embeddings = new_embeddings
+            self.pool_texts = new_texts
+        else:
+            self.pool_embeddings = torch.cat([self.pool_embeddings, new_embeddings], dim=0)
+            self.pool_texts.extend(new_texts)
+            
+        # Maintain max pool size (FIFO)
+        if self.pool_embeddings.size(0) > self.max_pool_size:
+            self.pool_embeddings = self.pool_embeddings[-self.max_pool_size:]
+            self.pool_texts = self.pool_texts[-self.max_pool_size:]
+            
+        return penalties.tolist()
+
+
 class GeneralIORewardManager:
     """The reward manager for GeneralIO tasks."""
     def __init__(
@@ -967,6 +1067,7 @@ class GeneralIORewardManager:
         prompt_manager=None,
         use_format_reward: bool = False,
         agent_output_dir: str = "./outputs",
+        diversity_reward_config: Dict[str, Any] = None,
         **kwargs
     ):
         self.tokenizer = tokenizer
@@ -988,6 +1089,15 @@ class GeneralIORewardManager:
         self.prompt_manager = prompt_manager
         self.use_format_reward = use_format_reward
         self.agent_output_dir = agent_output_dir
+
+        self.diversity_filter = None
+        if diversity_reward_config and diversity_reward_config.get('enabled', False):
+            self.diversity_filter = DiversityFilter(
+                threshold=diversity_reward_config.get('threshold', 0.8),
+                penalty=diversity_reward_config.get('penalty', 0.5),
+                max_pool_size=diversity_reward_config.get('max_pool_size', 1000),
+                model_name=diversity_reward_config.get('model_name', 'sentence-transformers/all-MiniLM-L6-v2')
+            )
 
     def set_prompt_manager(self, prompt_manager):
         """Set or update the prompt_manager for this reward manager."""
@@ -1144,41 +1254,58 @@ class GeneralIORewardManager:
             
             if problem_type.startswith("judge"):
                 open_tags, close_tags = self.count_tags(response_text, "score")
-                correct_count = 3
-                if open_tags == correct_count and close_tags == correct_count:
-                    tag_score = 1.0
-                elif open_tags == close_tags:
-                    if open_tags > correct_count:
-                        tag_score = 0.5
-                    else:
-                        tag_score = 0.0
-                else:
-                    tag_score = 0.0
-            elif problem_type.startswith("pred"):
-                open_tags, close_tags = self.count_tags(response_text, "answer")
                 correct_count = 1
                 if open_tags == correct_count and close_tags == correct_count:
                     tag_score = 1.0
                 elif open_tags == close_tags:
                     if open_tags > correct_count:
-                        tag_score = 0.5
+                        tag_score = 0.0
                     else:
                         tag_score = 0.0
                 else:
                     tag_score = 0.0
+            elif problem_type.startswith("pred"):
+                tag_scores = []
+                open_tags_think, close_tags_think = self.count_tags(response_text, "think")
+                open_tags_answer, close_tags_answer = self.count_tags(response_text, "answer")
+                
+                correct_count = 1
+                if open_tags_think == correct_count and close_tags_think == correct_count:
+                    think_tag_score = 1.0
+                elif open_tags_think == close_tags_think:
+                    if open_tags_think > correct_count:
+                        think_tag_score = 0.0
+                    else:
+                        think_tag_score = 0.0
+                else:
+                    think_tag_score = 0.0
+
+                if open_tags_answer == correct_count and close_tags_answer == correct_count:
+                    answer_tag_score = 1.0
+                elif open_tags_answer == close_tags_answer:
+                    if open_tags_answer > correct_count:
+                        answer_tag_score = 0.0
+                    else:
+                        answer_tag_score = 0.0
+                else:
+                    answer_tag_score = 0.0
+                
+                tag_scores.append(think_tag_score)
+                tag_scores.append(answer_tag_score)
+                tag_score = np.average(tag_scores)
             elif problem_type.startswith("gen"):
                 tag_scores = []
                 open_tags_question, close_tags_question = self.count_tags(response_text, "question")
                 open_tags_answer, close_tags_answer = self.count_tags(response_text, "answer")
                 open_tags_type, close_tags_type = self.count_tags(response_text, "type")
                 
-                correct_count = 3
-                if open_tags_question == close_tags_question:
-                    if open_tags_question >= correct_count and open_tags_question <= correct_count + 2:
-                        question_tag_score = 1.0
-                    elif open_tags_question > correct_count + 2:
-                        question_tag_score = 0.5
-                    elif open_tags_question < correct_count:
+                correct_count = 1
+                if open_tags_question == correct_count and close_tags_question == correct_count:
+                    question_tag_score = 1.0
+                elif open_tags_question == close_tags_question:
+                    if open_tags_question > correct_count:
+                        question_tag_score = 0.0
+                    else:
                         question_tag_score = 0.0
                 else:
                     question_tag_score = 0.0
@@ -1279,8 +1406,9 @@ class GeneralIORewardManager:
                     
                     print("Actor evaluation response:", text)
                     try:
-                        a = (scores[0] - 1) / 9.0
-                        uid2_a_scores[uid].append(min(1.0, max(0.0, a)))
+                        raw_a = (scores[0] - 1) / 9.0
+                        a = 1.0 if raw_a >= 0.7 else 0.0
+                        uid2_a_scores[uid].append(a)
                     except:
                         print("Falling back to neutral scores.")
                         pass
@@ -1344,8 +1472,9 @@ class GeneralIORewardManager:
                         
                         print("Actor evaluation response:", text)
                         try:
-                            q = (scores[0] - 1) / 9.0
-                            uid2_q_scores[uid].append(min(1.0, max(0.0, q)))
+                            raw_q = (scores[0] - 1) / 9.0
+                            q = 1.0 if raw_q >= 0.7 else 0.0
+                            uid2_q_scores[uid].append(q)
                         except:
                             print("Falling back to neutral scores.")
                             pass
@@ -1374,16 +1503,14 @@ class GeneralIORewardManager:
             # Create prompts for sampling
             prompts = []
             for data_dict in data_dicts:
-                question = extract_question(data_dict.get('generation', '<question></question>').split("[Your designed task]")[-1])
+                question = extract_question(data_dict.get('generation', '<question></question>'))
                 if question != []:
-                    question = question[-1]
+                    question = question[-1].strip()
                 else:
-                    # TODO(cyx): fallback maybe?
                     question = "The question is a invalid question"
                     PrettyPrinter.status("No question tags found in response", "", "warning")
                 
                 prompt_text = self.prompt_manager.get_solver_instruction(question)
-                # TODO(cyx): Maybe we can use the same prompt for solver batch, though the effect may be minor
                 prompts_dict = {
                     'prompt': [{'role': 'user', 'content': prompt_text}],
                     'uid': data_dict['uid'],
@@ -1452,8 +1579,9 @@ class GeneralIORewardManager:
                     scores = self.extract_score_from_tags(text)
                     print("Actor evaluation response:", text)
                     try:
-                        a = (scores[0] - 1) / 9.0
-                        uid2_a_scores[uid].append(min(1.0, max(0.0, a)))
+                        raw_a = (scores[0] - 1) / 9.0
+                        a = 1.0 if raw_a >= 0.7 else 0.0
+                        uid2_a_scores[uid].append(a)
                     except:
                         print("Falling back to neutral scores.")
                         pass
@@ -1533,10 +1661,12 @@ class GeneralIORewardManager:
                     # Assume scores are in 1-10 range, normalize to 0-1
                     if score >= 1 and score <= 10:
                         normalized_score = (score - 1) / 9.0
-                        normalized_scores.append(min(1.0, max(0.0, normalized_score)))
                     else:
                         # If score is already normalized or in different range, keep it this way
-                        normalized_scores.append(min(1.0, max(0.0, score)))
+                        normalized_score = score
+                    
+                    # Thresholding: >= 0.7 is 1, < 0.7 is 0
+                    normalized_scores.append(1.0 if normalized_score >= 0.7 else 0.0)
                 return normalized_scores
             else:
                 # Fallback: try to extract any number between 1-10
@@ -1548,8 +1678,8 @@ class GeneralIORewardManager:
                     for score in fallback_match:
                         score = int(score)
                         if 1 <= score <= 10:
-                            score = (score - 1) / 9.0
-                            score_list.append(min(1.0, max(0.0, score)))
+                            normalized_score = (score - 1) / 9.0
+                            score_list.append(1.0 if normalized_score >= 0.7 else 0.0)
                     if score_list:
                         return score_list
                 return [0.0]
@@ -1701,12 +1831,35 @@ class GeneralIORewardManager:
             data_dict = self._get_data_dict(data[i], problem_types[i], banned_words, uids[i], banned_assertion_keywords)
             data_dicts.append(data_dict)
 
+        alpha1 = 0.1
+        alpha2 = 0.8
+        beta = 0.1
+
         if problem_type.startswith('gen') and rollout_actor_wg is not None:
             PrettyPrinter.section_header("Computing Generation Rewards for GeneralIO Tasks")
             
             llm_scores, solver_avg_scores, format_rewards = self._get_all_scores(data_dicts, rollout_actor_wg, n_samples, problem_type)
             print(f"[DEBUG] Got scores - LLM scores: {llm_scores[:3]}..., Solver avg scores: {solver_avg_scores[:3]}...")
             
+            # Extract questions for diversity filtering
+            def extract_question_text(text):
+                pattern = r'<question>(.*?)</question>'
+                import re
+                matches = re.findall(pattern, text, re.DOTALL)
+                return matches[-1].strip() if matches else ""
+
+            generated_questions = []
+            for data_dict in data_dicts:
+                q = extract_question_text(data_dict.get('generation', ''))
+                if q:
+                    generated_questions.append(q)
+                else:
+                    generated_questions.append("")
+
+            diversity_penalties = [0.0] * len(data_dicts)
+            if self.diversity_filter:
+                diversity_penalties = self.diversity_filter.filter_and_update(generated_questions)
+
             for i, data_dict in enumerate(data_dicts):
                 valid_response_length = data_dict['valid_response_length']
                 
@@ -1724,12 +1877,14 @@ class GeneralIORewardManager:
 
                 if question:
                     difficulty_score = 1 - solver_avg_scores[i]
-                    final_score = llm_scores[i] / 3 + difficulty_score / 3 + format_rewards[i] / 3
+                    diversity_penalty = diversity_penalties[i]
+                    final_score = llm_scores[i] * alpha1 + difficulty_score * alpha2 + format_rewards[i] * beta - diversity_penalty
                     
                     reward_tensor[i, valid_response_length - 1] = final_score
                     all_scores['llm_judge_score'].append(llm_scores[i])
                     all_scores['difficulty_score'].append(difficulty_score)
                     all_scores['format_reward'].append(format_rewards[i])
+                    all_scores['diversity_penalty'].append(diversity_penalty)
                     all_scores['combined_score'].append(final_score)
                     if llm_scores[i] >= 0.7:
                         # Only add question to dataset if it is valid
@@ -1756,15 +1911,30 @@ class GeneralIORewardManager:
                             f.write(f"LLM Score: {llm_scores[i]}\n")
                             f.write("==============================================\n")
                             f.write("\n")
-                        reward_tensor[i, valid_response_length - 1] = llm_scores[i] / 3 + format_rewards[i] / 3
+                        reward_tensor[i, valid_response_length - 1] = format_rewards[i] * beta
                         all_scores['difficulty_score'][-1] = 0
-                        all_scores['combined_score'][-1] = llm_scores[i] / 3 + format_rewards[i] / 3
+                        all_scores['combined_score'][-1] = format_rewards[i] * beta
                 else:
                     print("Question format failed. Penalized and falling back")
+                    with open(f'{self.agent_output_dir}/low_quality_question.txt', 'a') as f:
+                        f.write(f"Question: {data_dict['question']}\n")
+                        f.write("==============================================\n")
+                        f.write("Extraction failed question\n")
+                        f.write("==============================================\n")
+                        if 'thought' in data_dict:
+                            f.write(f"Thought: {data_dict['thought']}\n")
+                            f.write("==============================================\n")
+                        if 'generation' in data_dict:
+                            f.write(f"Generation: {data_dict['generation']}\n")
+                            f.write("==============================================\n")
+                        f.write(f"LLM Score: {llm_scores[i]}\n")
+                        f.write("==============================================\n")
+                        f.write("\n")
                     reward_tensor[i, valid_response_length - 1] = 0.0
                     all_scores['llm_judge_score'].append(0.0)
                     all_scores['difficulty_score'].append(0.0)
                     all_scores['format_reward'].append(0.0)
+                    all_scores['diversity_penalty'].append(0.0)
                     all_scores['combined_score'].append(0.0)
 
             all_scores['solver_avg_scores'] = solver_avg_scores
@@ -1777,11 +1947,17 @@ class GeneralIORewardManager:
             for i, data_dict in enumerate(data_dicts):
                 valid_response_length = data_dict['valid_response_length']
                 
-                reward_tensor[i, valid_response_length - 1] = 0.5 * llm_scores[i] + 0.5 * format_rewards[i]
+                alpha = alpha1 + alpha2
+                
+                if format_rewards[i] == 0:
+                    reward_tensor[i, valid_response_length - 1] = 0
+                else:
+                    reward_tensor[i, valid_response_length - 1] = llm_scores[i] * alpha + format_rewards[i] * beta
                 valid_data.append({
                     'question': data_dict.get('question', ''),
                     'answer': data_dict.get('answer', ''),
                     'thought': data_dict.get('thought', ''),
+                    'generation': data_dict.get('generation', ''),
                     'reward_model': {
                         'ground_truth': data_dict.get('ground_truth', ''),
                     },
@@ -2059,10 +2235,6 @@ class BenchmarkEvaluationRewardManager:
         
         patterns = [
             r"<answer>(.*?)</answer>",
-            r"(?:the answer is|answer:|final answer:)\s*(.+?)(?:\n|$)",
-            r"(?:therefore|thus|so),?\s*(.+?)(?:\n|$)",
-            r"\$\$(.+?)\$\$",
-            r"####\s*(.+?)(?:\n|$)",
         ]
         
         for pattern in patterns:

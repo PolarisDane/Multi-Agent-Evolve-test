@@ -1006,6 +1006,20 @@ class GeneralIORayPPOTrainer(ReasonRLRayPPOTrainer):
         # pop those keys for generation
         gen_batch = batch.pop(batch_keys=['input_ids', 'attention_mask', 'position_ids'])
 
+        # Get role-specific temperature based on problem_type
+        role_temperatures = {
+            'gen_general': self.config.azr.get('proposer_temperature', None),
+            'pred_general': self.config.azr.get('solver_temperature', None),
+            'judge_general': self.config.azr.get('judge_temperature', None)
+        }
+
+        temperature = role_temperatures.get(problem_type, None)
+        if temperature is None:
+            temperature = self.config.actor_rollout_ref.rollout.temperature
+
+        if temperature is not None:
+            gen_batch.meta_info['temperature'] = temperature
+
         # generate a batch
         with _timer(f'gen/{problem_type}', timing_raw):
             gen_batch_output = self.actor_rollout_wg.generate_sequences(gen_batch)
@@ -1170,8 +1184,8 @@ class GeneralIORayPPOTrainer(ReasonRLRayPPOTrainer):
                             if 'answer' in item:
                                 f.write(f"Answer: {item['answer']}\n")
                                 f.write("==============================================\n")
-                            elif 'generation' in item:
-                                f.write(f"Answer: {item['generation']}\n")
+                            if 'generation' in item:
+                                f.write(f"Generation: {item['generation']}\n")
                                 f.write("==============================================\n")
                             f.write("\n")
                         f.write("\n")

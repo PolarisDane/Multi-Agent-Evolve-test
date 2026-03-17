@@ -200,7 +200,8 @@ class TaskRunner:
         if config.actor_rollout_ref.actor.strategy in ["fsdp", "fsdp2"]:
             assert config.critic.strategy in ["fsdp", "fsdp2"]
             from verl.single_controller.ray import RayWorkerGroup
-            from verl.workers.fsdp_workers import ActorRolloutRefWorker, AsyncActorRolloutRefWorker, CriticWorker
+            from verl.workers.fsdp_workers import AsyncActorRolloutRefWorker, CriticWorker
+            from absolute_zero_reasoner.workers.custom_fsdp_workers import CustomActorRolloutRefWorker as ActorRolloutRefWorker
 
             actor_rollout_cls = AsyncActorRolloutRefWorker if config.actor_rollout_ref.rollout.mode == "async" else ActorRolloutRefWorker
             ray_worker_group_cls = RayWorkerGroup
@@ -275,7 +276,8 @@ class TaskRunner:
                 boxed_retry=config.reward_fn.boxed_retry,
                 judge_with_actor=config.reward_fn.judge_with_actor,
                 use_format_reward=getattr(config.azr, 'use_format_reward', True),
-                agent_output_dir=config.agent_output_dir
+                agent_output_dir=config.agent_output_dir,
+                diversity_reward_config=config.azr.reward.get('diversity_reward_config', None),
             )
 
             # For validation, use BenchmarkEvaluationRewardManager instead
