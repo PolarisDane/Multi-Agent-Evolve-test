@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Dict, Optional, List
 from dataclasses import dataclass, asdict
 from datetime import datetime
+import random
 
 from absolute_zero_reasoner.utils.logging_utils.stdout import PrettyPrinter
 
@@ -53,7 +54,11 @@ class PromptManager:
             self.template_file = "absolute_zero_reasoner/data_construction/initial_prompt_templates/default.json"
             print(f"[DEBUG] PromptManager: Failed to init from JSON due to {e}, falling back to defaults")
         
+        self.seed_instructions: List[Dict] = []
+        self._load_seed_instructions(config)
+        
         print(f"[DEBUG] PromptManager initialized with templates: {list(self.templates.keys())}")
+        print(f"[DEBUG] PromptManager loaded {len(self.seed_instructions)} seed instructions")
         if self.template_file:
             print(f"[DEBUG] PromptManager.template_file = {self.template_file}")
     
@@ -102,19 +107,73 @@ class PromptManager:
         
         return self.get_template(template_name)
     
-    def get_proposer_instruction(self, ref: bool, with_answer_generation: bool=True) -> str:
-        """Get proposer instruction for question generation"""
+    def get_proposer_instruction(self, ref: bool, with_answer_generation: bool=True, use_seed: bool=False) -> str:
+        """Get proposer instruction for question generation.
+        
+        Args:
+            ref: Whether to include reference questions.
+            with_answer_generation: Whether the proposer should also generate answers.
+            use_seed: Whether to use a seed topic instruction (only effective when ref=False).
+        """
         if ref:
             if with_answer_generation:
                 return self.get_template('proposer_with_ref_with_answer_generation')
             else:
                 return self.get_template('proposer_with_ref_no_answer_generation')
+        elif use_seed and self.seed_instructions:
+            seed = random.choice(self.seed_instructions)
+            seed_text = f"**[{seed.get('domain', 'General')} — {seed.get('subdomain', '')}]** {seed['instruction']}"
+            if with_answer_generation:
+                template = self.get_template('proposer_no_ref_with_seed_with_answer_generation')
+            else:
+                template = self.get_template('proposer_no_ref_with_seed_no_answer_generation')
+            try:
+                return template.replace('{seed_instruction}', seed_text)
+            except Exception:
+                return template + f"\n\n**Topic Guidance:** {seed_text}"
         else:
             if with_answer_generation:
                 return self.get_template('proposer_no_ref_with_answer_generation')
             else:
                 return self.get_template('proposer_no_ref_no_answer_generation')
     
+    def _load_seed_instructions(self, config=None):
+        """Load seed instructions from a JSON file for topic-guided problem generation."""
+        seed_file = None
+        try:
+            if config is not None:
+                if isinstance(config, dict):
+                    seed_file = config.get('azr', {}).get('seed_instructions_file')
+                else:
+                    azr_cfg = getattr(config, 'azr', None)
+                    if azr_cfg is not None:
+                        seed_file = getattr(azr_cfg, 'seed_instructions_file', None)
+        except Exception:
+            pass
+        
+        if seed_file is None:
+            seed_file = "absolute_zero_reasoner/data_construction/seed_instructions.json"
+        
+        try:
+            if Path(seed_file).exists():
+                with open(seed_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                self.seed_instructions = data.get('seed_instructions', [])
+                print(f"[DEBUG] PromptManager: Loaded {len(self.seed_instructions)} seed instructions from {seed_file}")
+            else:
+                default_path = "absolute_zero_reasoner/data_construction/seed_instructions.json"
+                if Path(default_path).exists():
+                    with open(default_path, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                    self.seed_instructions = data.get('seed_instructions', [])
+                    print(f"[DEBUG] PromptManager: Loaded {len(self.seed_instructions)} seed instructions from default path")
+                else:
+                    self.seed_instructions = []
+                    print(f"[DEBUG] PromptManager: No seed instructions file found, seed instruction mode disabled")
+        except Exception as e:
+            self.seed_instructions = []
+            print(f"[DEBUG] PromptManager: Failed to load seed instructions: {e}")
+
     def _initialize_from_json(self, file_path: str) -> Dict[str, PromptTemplate]:
         """Initialize templates from a JSON file.
         JSON schema supported:
