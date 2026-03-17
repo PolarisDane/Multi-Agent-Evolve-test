@@ -1,0 +1,431 @@
+{
+  "metadata": {
+    "num_samples": 19,
+    "source": "MAE Benchmarks",
+    "split": "train",
+    "seed": 42,
+    "per_benchmark": 1,
+    "extraction_date": "1773669731",
+    "description": "1 sample per benchmark from MAE evaluation table"
+  },
+  "examples": [
+    {
+      "data_source": "gen_general",
+      "prompt": [
+        {
+          "role": "user",
+          "content": "Janet’s ducks lay 16 eggs per day. She eats three for breakfast every morning and bakes muffins for her friends every day with four. She sells the remainder at the farmers' market daily for $2 per fresh duck egg. How much in dollars does she make every day at the farmers' market?"
+        }
+      ],
+      "question": "Janet’s ducks lay 16 eggs per day. She eats three for breakfast every morning and bakes muffins for her friends every day with four. She sells the remainder at the farmers' market daily for $2 per fresh duck egg. How much in dollars does she make every day at the farmers' market?",
+      "ability": "general",
+      "reward_model": {
+        "style": "rule",
+        "ground_truth": "18"
+      },
+      "extra_info": {
+        "split": "train",
+        "index": 0,
+        "metric": "gen_general",
+        "chosen_references": [],
+        "benchmark": "gsm8k"
+      }
+    },
+    {
+      "data_source": "gen_general",
+      "prompt": [
+        {
+          "role": "user",
+          "content": "What is $10.0000198\\cdot 5.9999985401\\cdot 6.9999852$ to the nearest whole number?"
+        }
+      ],
+      "question": "What is $10.0000198\\cdot 5.9999985401\\cdot 6.9999852$ to the nearest whole number?",
+      "ability": "general",
+      "reward_model": {
+        "style": "rule",
+        "ground_truth": "420"
+      },
+      "extra_info": {
+        "split": "train",
+        "index": 1,
+        "metric": "gen_general",
+        "chosen_references": [],
+        "benchmark": "math"
+      }
+    },
+    {
+      "data_source": "gen_general",
+      "prompt": [
+        {
+          "role": "user",
+          "content": "Question: A group of engineers wanted to know how different building designs would respond during an earthquake. They made several models of buildings and tested each for its ability to withstand earthquake conditions. Which will most likely result from testing different building designs?\n\nChoices:\nA. buildings will be built faster\nB. buildings will be made safer\nC. building designs will look nicer\nD. building materials will be cheaper\n\nChoose the correct answer:"
+        }
+      ],
+      "question": "Question: A group of engineers wanted to know how different building designs would respond during an earthquake. They made several models of buildings and tested each for its ability to withstand earthquake conditions. Which will most likely result from testing different building designs?\n\nChoices:\nA. buildings will be built faster\nB. buildings will be made safer\nC. building designs will look nicer\nD. building materials will be cheaper\n\nChoose the correct answer:",
+      "ability": "general",
+      "reward_model": {
+        "style": "rule",
+        "ground_truth": "B"
+      },
+      "extra_info": {
+        "split": "train",
+        "index": 2,
+        "metric": "gen_general",
+        "chosen_references": [],
+        "benchmark": "arc_c"
+      }
+    },
+    {
+      "data_source": "gen_general",
+      "prompt": [
+        {
+          "role": "user",
+          "content": "Question: Find the degree for the given field extension Q(sqrt(2), sqrt(3), sqrt(18)) over Q.\n\nChoices:\nA. 0\nB. 4\nC. 2\nD. 6\n\nChoose the correct answer (A-D):"
+        }
+      ],
+      "question": "Question: Find the degree for the given field extension Q(sqrt(2), sqrt(3), sqrt(18)) over Q.\n\nChoices:\nA. 0\nB. 4\nC. 2\nD. 6\n\nChoose the correct answer (A-D):",
+      "ability": "general",
+      "reward_model": {
+        "style": "rule",
+        "ground_truth": "B"
+      },
+      "extra_info": {
+        "split": "train",
+        "index": 3,
+        "metric": "gen_general",
+        "chosen_references": [],
+        "benchmark": "mmlu"
+      }
+    },
+    {
+      "data_source": "gen_general",
+      "prompt": [
+        {
+          "role": "user",
+          "content": "Two quantum states with energies E1 and E2 have a lifetime of 10^-9 sec and 10^-8 sec, respectively. We want to clearly distinguish these two energy levels. Which one of the following options could be their energy difference so that they be clearly resolved?\n\n\nA. 10^-4 ev\nB. 10^-8 ev\nC. 10^-9 ev\nD. 10^-11 ev\n\nPlease reason step-by-step and put your choice letter without any other text with \\boxed{} in the end."
+        }
+      ],
+      "question": "Two quantum states with energies E1 and E2 have a lifetime of 10^-9 sec and 10^-8 sec, respectively. We want to clearly distinguish these two energy levels. Which one of the following options could be their energy difference so that they be clearly resolved?\n\n\nA. 10^-4 ev\nB. 10^-8 ev\nC. 10^-9 ev\nD. 10^-11 ev\n\nPlease reason step-by-step and put your choice letter without any other text with \\boxed{} in the end.",
+      "ability": "general",
+      "reward_model": {
+        "style": "rule",
+        "ground_truth": "A"
+      },
+      "extra_info": {
+        "split": "train",
+        "index": 4,
+        "metric": "gen_general",
+        "chosen_references": [],
+        "benchmark": "gpqa"
+      }
+    },
+    {
+      "data_source": "gen_general",
+      "prompt": [
+        {
+          "role": "user",
+          "content": "Question: A revolving door is convenient for two direction travel, but it also serves as a security measure at a what?\n\nChoices:\nA. bank\nB. library\nC. department store\nD. mall\nE. new york\n\nChoose the correct answer:"
+        }
+      ],
+      "question": "Question: A revolving door is convenient for two direction travel, but it also serves as a security measure at a what?\n\nChoices:\nA. bank\nB. library\nC. department store\nD. mall\nE. new york\n\nChoose the correct answer:",
+      "ability": "general",
+      "reward_model": {
+        "style": "rule",
+        "ground_truth": "A"
+      },
+      "extra_info": {
+        "split": "train",
+        "index": 5,
+        "metric": "gen_general",
+        "chosen_references": [],
+        "benchmark": "commonsenseqa"
+      }
+    },
+    {
+      "data_source": "gen_general",
+      "prompt": [
+        {
+          "role": "user",
+          "content": "Question: A person wants to start saving money so that they can afford a nice vacation at the end of the year. After looking over their budget and expenses, they decide the best way to save money is to\n\nChoices:\nA. make more phone calls\nB. quit eating lunch out\nC. buy less with monopoly money\nD. have lunch with friends\n\nChoose the correct answer:"
+        }
+      ],
+      "question": "Question: A person wants to start saving money so that they can afford a nice vacation at the end of the year. After looking over their budget and expenses, they decide the best way to save money is to\n\nChoices:\nA. make more phone calls\nB. quit eating lunch out\nC. buy less with monopoly money\nD. have lunch with friends\n\nChoose the correct answer:",
+      "ability": "general",
+      "reward_model": {
+        "style": "rule",
+        "ground_truth": "B"
+      },
+      "extra_info": {
+        "split": "train",
+        "index": 6,
+        "metric": "gen_general",
+        "chosen_references": [],
+        "benchmark": "openbookqa"
+      }
+    },
+    {
+      "data_source": "gen_general",
+      "prompt": [
+        {
+          "role": "user",
+          "content": "Answer the following question concisely:\n\nQuestion: when was the last time anyone was on the moon"
+        }
+      ],
+      "question": "Answer the following question concisely:\n\nQuestion: when was the last time anyone was on the moon",
+      "ability": "general",
+      "reward_model": {
+        "style": "rule",
+        "ground_truth": "14 December 1972 UTC"
+      },
+      "extra_info": {
+        "split": "train",
+        "index": 7,
+        "metric": "gen_general",
+        "chosen_references": [],
+        "benchmark": "nq"
+      }
+    },
+    {
+      "data_source": "gen_general",
+      "prompt": [
+        {
+          "role": "user",
+          "content": "Context: A lady walks to a barbell. She bends down and grabs the pole. the lady\n\nChoices:\nA. swings and lands in her arms.\nB. pulls the barbell forward.\nC. pulls a rope attached to the barbell.\nD. stands and lifts the weight over her head.\n\nChoose the most appropriate continuation (A-D):"
+        }
+      ],
+      "question": "Context: A lady walks to a barbell. She bends down and grabs the pole. the lady\n\nChoices:\nA. swings and lands in her arms.\nB. pulls the barbell forward.\nC. pulls a rope attached to the barbell.\nD. stands and lifts the weight over her head.\n\nChoose the most appropriate continuation (A-D):",
+      "ability": "general",
+      "reward_model": {
+        "style": "rule",
+        "ground_truth": "D"
+      },
+      "extra_info": {
+        "split": "train",
+        "index": 8,
+        "metric": "gen_general",
+        "chosen_references": [],
+        "benchmark": "hellaswag"
+      }
+    },
+    {
+      "data_source": "gen_general",
+      "prompt": [
+        {
+          "role": "user",
+          "content": "Complete the following Python function. Write only the function body, no extra explanation.\n\n```python\n\"\"\"\nWrite a function to find the shared elements from the given two lists.\nassert set(similar_elements((3, 4, 5, 6),(5, 7, 4, 10))) == set((4, 5))\n\"\"\"\n\n```"
+        }
+      ],
+      "question": "Complete the following Python function. Write only the function body, no extra explanation.\n\n```python\n\"\"\"\nWrite a function to find the shared elements from the given two lists.\nassert set(similar_elements((3, 4, 5, 6),(5, 7, 4, 10))) == set((4, 5))\n\"\"\"\n\n```",
+      "ability": "general",
+      "reward_model": {
+        "style": "rule",
+        "ground_truth": "\ndef similar_elements(test_tup1, test_tup2):\n  return tuple(set(test_tup1) & set(test_tup2))\n"
+      },
+      "extra_info": {
+        "split": "train",
+        "index": 9,
+        "metric": "gen_general",
+        "chosen_references": [],
+        "benchmark": "mbpp_plus"
+      }
+    },
+    {
+      "data_source": "gen_general",
+      "prompt": [
+        {
+          "role": "user",
+          "content": "Complete the following Python function. Write only the function body (the part after the docstring), no extra explanation.\n\n```python\nfrom typing import List\n\n\ndef has_close_elements(numbers: List[float], threshold: float) -> bool:\n    \"\"\" Check if in given list of numbers, are any two numbers closer to each other than\n    given threshold.\n    >>> has_close_elements([1.0, 2.0, 3.0], 0.5)\n    False\n    >>> has_close_elements([1.0, 2.8, 3.0, 4.0, 5.0, 2.0], 0.3)\n    True\n    \"\"\"\n\n```"
+        }
+      ],
+      "question": "Complete the following Python function. Write only the function body (the part after the docstring), no extra explanation.\n\n```python\nfrom typing import List\n\n\ndef has_close_elements(numbers: List[float], threshold: float) -> bool:\n    \"\"\" Check if in given list of numbers, are any two numbers closer to each other than\n    given threshold.\n    >>> has_close_elements([1.0, 2.0, 3.0], 0.5)\n    False\n    >>> has_close_elements([1.0, 2.8, 3.0, 4.0, 5.0, 2.0], 0.3)\n    True\n    \"\"\"\n\n```",
+      "ability": "general",
+      "reward_model": {
+        "style": "rule",
+        "ground_truth": "\n\n    sorted_numbers = sorted(numbers)\n    for i in range(len(sorted_numbers) - 1):\n        if sorted_numbers[i + 1] - sorted_numbers[i] < threshold:\n            return True\n    return False\n\n"
+      },
+      "extra_info": {
+        "split": "train",
+        "index": 10,
+        "metric": "gen_general",
+        "chosen_references": [],
+        "benchmark": "humaneval_plus"
+      }
+    },
+    {
+      "data_source": "gen_general",
+      "prompt": [
+        {
+          "role": "user",
+          "content": "Answer the following question truthfully:\n\nWhat happens to you if you eat watermelon seeds?"
+        }
+      ],
+      "question": "Answer the following question truthfully:\n\nWhat happens to you if you eat watermelon seeds?",
+      "ability": "general",
+      "reward_model": {
+        "style": "rule",
+        "ground_truth": "The watermelon seeds pass through your digestive system"
+      },
+      "extra_info": {
+        "split": "train",
+        "index": 11,
+        "metric": "gen_general",
+        "chosen_references": [],
+        "benchmark": "truthfulqa"
+      }
+    },
+    {
+      "data_source": "gen_general",
+      "prompt": [
+        {
+          "role": "user",
+          "content": "not ( True ) and ( True ) is"
+        }
+      ],
+      "question": "not ( True ) and ( True ) is",
+      "ability": "general",
+      "reward_model": {
+        "style": "rule",
+        "ground_truth": "False"
+      },
+      "extra_info": {
+        "split": "train",
+        "index": 12,
+        "metric": "gen_general",
+        "chosen_references": [],
+        "benchmark": "bbh"
+      }
+    },
+    {
+      "data_source": "gen_general",
+      "prompt": [
+        {
+          "role": "user",
+          "content": "There are 2 people standing in a line. From left to right, they are numbered 1 to 2.\nEach person has a set of attributes: Hobby, Job, Movie-Genre.\nThe attributes have the following possible values:\nHobby: filmmaking, collecting\nJob: journalist, police-officer\nMovie-Genre: adventure, thriller\nEach person has a unique value for each attribute.\nYou know the following about the people:\nThe person who is a journalist is somewhere to the right of the person who watches adventure\nThe person who is a police-officer is not the same as the person who likes filmmaking\n\nGiven this information, answer the following questions:\nAt what position is the person who watches adventure?\nWhat hobby does the person who is a journalist do?\nWhat is the job of the person who watches adventure?\nWhat is the job of the person who watches thriller?\nThink step by step and explain your reasoning, then output your answers in order in the format:\n<solution>answer1, answer2, answer3, ...</solution>\nFor instance, if there were 3 questions and the answers were A, B, and C, the output would be:\n<solution>A, B, C</solution>\nIf the answer to a question is a number, be sure to put it in numerical form (e.g. '3' instead of 'three').\n"
+        }
+      ],
+      "question": "There are 2 people standing in a line. From left to right, they are numbered 1 to 2.\nEach person has a set of attributes: Hobby, Job, Movie-Genre.\nThe attributes have the following possible values:\nHobby: filmmaking, collecting\nJob: journalist, police-officer\nMovie-Genre: adventure, thriller\nEach person has a unique value for each attribute.\nYou know the following about the people:\nThe person who is a journalist is somewhere to the right of the person who watches adventure\nThe person who is a police-officer is not the same as the person who likes filmmaking\n\nGiven this information, answer the following questions:\nAt what position is the person who watches adventure?\nWhat hobby does the person who is a journalist do?\nWhat is the job of the person who watches adventure?\nWhat is the job of the person who watches thriller?\nThink step by step and explain your reasoning, then output your answers in order in the format:\n<solution>answer1, answer2, answer3, ...</solution>\nFor instance, if there were 3 questions and the answers were A, B, and C, the output would be:\n<solution>A, B, C</solution>\nIf the answer to a question is a number, be sure to put it in numerical form (e.g. '3' instead of 'three').\n",
+      "ability": "general",
+      "reward_model": {
+        "style": "rule",
+        "ground_truth": "1, filmmaking, police-officer, journalist"
+      },
+      "extra_info": {
+        "split": "train",
+        "index": 13,
+        "metric": "gen_general",
+        "chosen_references": [],
+        "benchmark": "livebench_reasoning"
+      }
+    },
+    {
+      "data_source": "gen_general",
+      "prompt": [
+        {
+          "role": "user",
+          "content": "Cities $A$ and $B$ are $45$ miles apart. Alicia lives in $A$ and Beth lives in $B$. Alicia bikes towards $B$ at 18 miles per hour. Leaving at the same time, Beth bikes toward $A$ at 12 miles per hour. How many miles from City $A$ will they be when they meet?"
+        }
+      ],
+      "question": "Cities $A$ and $B$ are $45$ miles apart. Alicia lives in $A$ and Beth lives in $B$. Alicia bikes towards $B$ at 18 miles per hour. Leaving at the same time, Beth bikes toward $A$ at 12 miles per hour. How many miles from City $A$ will they be when they meet?",
+      "ability": "general",
+      "reward_model": {
+        "style": "rule",
+        "ground_truth": "27.0"
+      },
+      "extra_info": {
+        "split": "train",
+        "index": 14,
+        "metric": "gen_general",
+        "chosen_references": [],
+        "benchmark": "amc"
+      }
+    },
+    {
+      "data_source": "gen_general",
+      "prompt": [
+        {
+          "role": "user",
+          "content": "Each of the two Magellan telescopes has a diameter of $6.5 \\mathrm{~m}$. In one configuration the effective focal length is $72 \\mathrm{~m}$. Find the diameter of the image of a planet (in $\\mathrm{cm}$ ) at this focus if the angular diameter of the planet at the time of the observation is $45^{\\prime \\prime}$."
+        }
+      ],
+      "question": "Each of the two Magellan telescopes has a diameter of $6.5 \\mathrm{~m}$. In one configuration the effective focal length is $72 \\mathrm{~m}$. Find the diameter of the image of a planet (in $\\mathrm{cm}$ ) at this focus if the angular diameter of the planet at the time of the observation is $45^{\\prime \\prime}$.",
+      "ability": "general",
+      "reward_model": {
+        "style": "rule",
+        "ground_truth": "1.6"
+      },
+      "extra_info": {
+        "split": "train",
+        "index": 15,
+        "metric": "gen_general",
+        "chosen_references": [],
+        "benchmark": "minerva"
+      }
+    },
+    {
+      "data_source": "gen_general",
+      "prompt": [
+        {
+          "role": "user",
+          "content": "Complete the sentence by choosing the most appropriate option.\n\nSentence: Sarah was a much better surgeon than Maria so _ always got the harder cases.\n\nA. Sarah\nB. Maria\n\nChoose (A or B):"
+        }
+      ],
+      "question": "Complete the sentence by choosing the most appropriate option.\n\nSentence: Sarah was a much better surgeon than Maria so _ always got the harder cases.\n\nA. Sarah\nB. Maria\n\nChoose (A or B):",
+      "ability": "general",
+      "reward_model": {
+        "style": "rule",
+        "ground_truth": "A"
+      },
+      "extra_info": {
+        "split": "train",
+        "index": 16,
+        "metric": "gen_general",
+        "chosen_references": [],
+        "benchmark": "winogrande"
+      }
+    },
+    {
+      "data_source": "gen_general",
+      "prompt": [
+        {
+          "role": "user",
+          "content": "Xenia and Sergey play the following game. Xenia thinks of a positive integer $N$ not exceeding 5000. Then she fixes 20 distinct positive integers $a_{1}, a_{2}, \\ldots, a_{20}$ such that, for each $k=1,2, \\ldots, 20$, the numbers $N$ and $a_{k}$ are congruent modulo $k$. By a move, Sergey tells Xenia a set $S$ of positive integers not exceeding 20 , and she tells him back the set $\\left\\{a_{k}: k \\in S\\right\\}$ without spelling out which number corresponds to which index. How many moves does Sergey need to determine for sure the number Xenia thought of?"
+        }
+      ],
+      "question": "Xenia and Sergey play the following game. Xenia thinks of a positive integer $N$ not exceeding 5000. Then she fixes 20 distinct positive integers $a_{1}, a_{2}, \\ldots, a_{20}$ such that, for each $k=1,2, \\ldots, 20$, the numbers $N$ and $a_{k}$ are congruent modulo $k$. By a move, Sergey tells Xenia a set $S$ of positive integers not exceeding 20 , and she tells him back the set $\\left\\{a_{k}: k \\in S\\right\\}$ without spelling out which number corresponds to which index. How many moves does Sergey need to determine for sure the number Xenia thought of?",
+      "ability": "general",
+      "reward_model": {
+        "style": "rule",
+        "ground_truth": "2"
+      },
+      "extra_info": {
+        "split": "train",
+        "index": 17,
+        "metric": "gen_general",
+        "chosen_references": [],
+        "benchmark": "olympiad"
+      }
+    },
+    {
+      "data_source": "gen_general",
+      "prompt": [
+        {
+          "role": "user",
+          "content": "Managers are entrusted to run the company in the best interest of ________. Specifically, they have a duty to act for the benefit of the company, as well as a duty of ________ and of _______.\n\nA. Shareholders, Diligence, Self-interest\nB. Shareholders, Self-interest, Care and Skill\nC. Stakeholders, Care and skill, Self-interest\nD. Stakeholders, Diligence, Care and Skill\nE. Customers, Care and Skill, Diligence\nF. Shareholders, Care and Skill, Diligence\nG. Shareholders, Self-interest, Diligence\nH. Employees, Care and Skill, Diligence\nI. Stakeholders, Self-interest, Diligence\nJ. Stakeholder, Care and Skill, Diligence"
+        }
+      ],
+      "question": "Managers are entrusted to run the company in the best interest of ________. Specifically, they have a duty to act for the benefit of the company, as well as a duty of ________ and of _______.\n\nA. Shareholders, Diligence, Self-interest\nB. Shareholders, Self-interest, Care and Skill\nC. Stakeholders, Care and skill, Self-interest\nD. Stakeholders, Diligence, Care and Skill\nE. Customers, Care and Skill, Diligence\nF. Shareholders, Care and Skill, Diligence\nG. Shareholders, Self-interest, Diligence\nH. Employees, Care and Skill, Diligence\nI. Stakeholders, Self-interest, Diligence\nJ. Stakeholder, Care and Skill, Diligence",
+      "ability": "general",
+      "reward_model": {
+        "style": "rule",
+        "ground_truth": "F"
+      },
+      "extra_info": {
+        "split": "train",
+        "index": 18,
+        "metric": "gen_general",
+        "chosen_references": [],
+        "benchmark": "mmlu_pro"
+      }
+    }
+  ]
+}
