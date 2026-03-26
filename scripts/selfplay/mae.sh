@@ -93,7 +93,7 @@ python -m absolute_zero_reasoner.main_azr_ppo \
     +azr.reward.diversity_reward_config.penalty=0.3 \
     trainer.resume_mode=disable \
     trainer.total_epochs=30 \
-    +azr.gradient_analysis.enabled=True \
-    +azr.gradient_analysis.freq=5 \
-    +azr.gradient_analysis.checkpoint_dir=/ceph/home/muhan01/wyd/ICML_rebuttal/Multi-Agent-Evolve-test/gradient_analysis_ckpt \
+    azr.gradient_analysis.enabled=True \
+    azr.gradient_analysis.freq=5 \
+    azr.gradient_analysis.checkpoint_dir=/ceph/home/muhan01/wyd/ICML_rebuttal/Multi-Agent-Evolve-test/gradient_analysis_ckpt \
     +prompt_manager.template_file=absolute_zero_reasoner/data_construction/initial_prompt_templates/default2.json $@
