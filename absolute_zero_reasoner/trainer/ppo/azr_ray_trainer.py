@@ -10,6 +10,8 @@ import gc
 import os
 import pickle
 import ast
+import math
+import shutil
 
 import ray
 import torch
@@ -693,6 +695,229 @@ class DatasetManager:
         with self.locks[counter_type]:
             self.type_counters[counter_type][element_type][element] += 1
 
+class GradientAnalyzer:
+    """Analyze gradient conflicts between roles (proposer / solver / judge).
+
+    Computes per-parameter-matrix cosine similarity between the parameter
+    deltas induced by each role's update_actor call, and dumps raw per-layer
+    data to a JSONL file for offline visualization.
+    """
+
+    def __init__(
+        self,
+        checkpoint_dir: str = "/dev/shm/gradient_analysis_ckpt",
+        output_dir: str = ".",
+        experiment_name: str = "default",
+    ):
+        self.history: List[Dict] = []
+        self.checkpoint_dir = checkpoint_dir
+        self.output_file = os.path.join(
+            output_dir, f"gradient_analysis_{experiment_name}.jsonl"
+        )
+
+    # ------------------------------------------------------------------ #
+    #  Checkpoint → ordered dict of {param_name: Tensor}
+    # ------------------------------------------------------------------ #
+    @staticmethod
+    def _load_state_dict(ckpt_path: str) -> Dict[str, torch.Tensor]:
+        """Load checkpoint shards and return an ordered dict of param tensors."""
+        from collections import OrderedDict
+
+        state: Dict[str, torch.Tensor] = OrderedDict()
+        ckpt = Path(ckpt_path)
+
+        # Try safetensors first
+        sf_files = sorted(ckpt.glob("*.safetensors"))
+        if sf_files:
+            from safetensors.torch import load_file as st_load_file
+            for sf in sf_files:
+                sd = st_load_file(str(sf), device="cpu")
+                for k in sorted(sd.keys()):
+                    state[k] = sd[k].float()
+            return state
+
+        # Fallback: pytorch .bin / .pt shards
+        for pt in sorted(ckpt.glob("*.bin")) + sorted(ckpt.glob("*.pt")):
+            sd = torch.load(str(pt), map_location="cpu", weights_only=True)
+            for k in sorted(sd.keys()):
+                state[k] = sd[k].float()
+        if state:
+            return state
+
+        raise FileNotFoundError(f"No checkpoint shards found in {ckpt_path}")
+
+    # ------------------------------------------------------------------ #
+    #  Per-layer pairwise analysis
+    # ------------------------------------------------------------------ #
+    @staticmethod
+    def _per_layer_cosine_similarity(
+        deltas_a: Dict[str, torch.Tensor],
+        deltas_b: Dict[str, torch.Tensor],
+    ) -> Tuple[Dict[str, float], float]:
+        """Compute cosine similarity for each parameter matrix, return per-layer
+        dict and their (unweighted) mean."""
+        per_layer = {}
+        cos_values = []
+        for name in deltas_a:
+            if name not in deltas_b:
+                continue
+            da = deltas_a[name].reshape(-1)
+            db = deltas_b[name].reshape(-1)
+            # Skip params with zero delta in both roles (unchanged params)
+            if da.norm() < 1e-12 and db.norm() < 1e-12:
+                continue
+            cos = torch.nn.functional.cosine_similarity(
+                da.unsqueeze(0), db.unsqueeze(0)
+            ).item()
+            per_layer[name] = cos
+            cos_values.append(cos)
+        mean_cos = float(np.mean(cos_values)) if cos_values else 0.0
+        return per_layer, mean_cos
+
+    # ------------------------------------------------------------------ #
+    #  Dump raw data to JSONL for offline visualization
+    # ------------------------------------------------------------------ #
+    def _dump_raw(self, global_step: int, record: Dict):
+        """Append one JSON line per step to the output file."""
+        record["global_step"] = global_step
+        os.makedirs(os.path.dirname(self.output_file) or ".", exist_ok=True)
+        with open(self.output_file, "a") as f:
+            f.write(json.dumps(record, default=str) + "\n")
+
+    # ------------------------------------------------------------------ #
+    #  Full mode — per-layer parameter delta cosine similarity
+    # ------------------------------------------------------------------ #
+    def analyze_step(
+        self,
+        actor_rollout_wg,
+        batches: Dict[str, "DataProto"],
+        global_step: int = 0,
+    ) -> Dict[str, float]:
+        """Per-role gradient analysis via model parameter deltas.
+
+        For each role:
+          save_checkpoint → update_actor → save_checkpoint → load_checkpoint
+        Then for every parameter matrix, compute cosine_similarity of
+        (after − before) across role pairs.  The mean over all layers is
+        the summary metric; raw per-layer data is written to JSONL.
+        """
+        if len(batches) < 2:
+            return {}
+
+        base_dir = Path(self.checkpoint_dir)
+        base_dir.mkdir(parents=True, exist_ok=True)
+        before_path = str(base_dir / "before")
+
+        metrics: Dict[str, float] = {}
+        # role_name -> {param_name: delta_tensor}
+        role_deltas: Dict[str, Dict[str, torch.Tensor]] = {}
+
+        # 1. Save current (pre-update) parameters
+        actor_rollout_wg.save_checkpoint(before_path)
+        before_sd = self._load_state_dict(before_path)
+
+        for role_name, role_batch in batches.items():
+            after_path = str(base_dir / f"after_{role_name}")
+
+            # 2. Update actor with this role's batch
+            actor_output = actor_rollout_wg.update_actor(role_batch)
+            role_actor_metrics = reduce_metrics(actor_output.meta_info['metrics'])
+            for k, v in role_actor_metrics.items():
+                metrics[f"gradient_analysis/{role_name}/{k}"] = v
+
+            # 3. Save updated parameters & compute per-param delta
+            actor_rollout_wg.save_checkpoint(after_path)
+            after_sd = self._load_state_dict(after_path)
+
+            deltas = {}
+            total_delta_norm_sq = 0.0
+            for name in before_sd:
+                d = after_sd[name] - before_sd[name]
+                deltas[name] = d
+                total_delta_norm_sq += d.norm().item() ** 2
+            role_deltas[role_name] = deltas
+            metrics[f"gradient_analysis/{role_name}/param_delta_norm"] = math.sqrt(total_delta_norm_sq)
+
+            # 4. Restore original parameters
+            actor_rollout_wg.load_checkpoint(before_path, del_local_after_load=False)
+            shutil.rmtree(after_path, ignore_errors=True)
+
+        # 5. Pairwise per-layer cosine similarity
+        raw_record: Dict = {}   # for JSONL dump
+        roles = list(role_deltas.keys())
+        for i in range(len(roles)):
+            for j in range(i + 1, len(roles)):
+                r1, r2 = roles[i], roles[j]
+                per_layer, mean_cos = self._per_layer_cosine_similarity(
+                    role_deltas[r1], role_deltas[r2]
+                )
+                pair_key = f"{r1}_vs_{r2}"
+                metrics[f"gradient_analysis/{pair_key}/cosine_similarity_mean"] = mean_cos
+                metrics[f"gradient_analysis/{pair_key}/angle_degrees_mean"] = math.degrees(
+                    math.acos(max(-1.0, min(1.0, mean_cos)))
+                )
+
+                # Store per-layer data for JSONL
+                raw_record[pair_key] = {
+                    "mean_cosine_similarity": mean_cos,
+                    "per_layer": per_layer,
+                }
+
+        # 6. Dump raw per-layer data
+        self._dump_raw(global_step, raw_record)
+
+        # Cleanup
+        shutil.rmtree(before_path, ignore_errors=True)
+
+        self.history.append(metrics)
+        return metrics
+
+
+
+class AlternatingTrainingScheduler:
+    """Round-robin scheduler for alternating role training.
+
+    Each step, only one role is trained (its batch goes through update_actor).
+    The other roles still go through generation and reward computation
+    (to collect data and compute metrics) but their batches are excluded
+    from the parameter update.
+
+    With ``steps_per_role=1`` (default):
+      step 0 → solver, step 1 → proposer, step 2 → judge, step 3 → solver, …
+
+    With ``steps_per_role=2``:
+      steps 0-1 → solver, steps 2-3 → proposer, steps 4-5 → judge, steps 6-7 → solver, …
+    """
+
+    DEFAULT_ROLE_ORDER = ['pred_general', 'gen_general', 'judge_general']
+
+    def __init__(self, role_order: List[str] = None, steps_per_role: int = 1):
+        self.role_order = role_order or self.DEFAULT_ROLE_ORDER
+        self.steps_per_role = max(1, steps_per_role)
+
+    def get_active_role(self, global_step: int) -> str:
+        """Return the role that should be trained at this step."""
+        # Each role occupies `steps_per_role` consecutive steps
+        cycle_length = len(self.role_order) * self.steps_per_role
+        idx = (global_step % cycle_length) // self.steps_per_role
+        return self.role_order[idx]
+
+    def filter_batches_for_update(
+        self, batches: Dict[str, "DataProto"], global_step: int
+    ) -> Dict[str, "DataProto"]:
+        """Return only the batch for the active role at this step."""
+        active_role = self.get_active_role(global_step)
+        if active_role in batches:
+            return {active_role: batches[active_role]}
+        # Fallback: if active role not available, use all batches
+        PrettyPrinter.status(
+            "ALTERNATING",
+            f"Active role '{active_role}' not in batches {list(batches.keys())}, using all",
+            "warn",
+        )
+        return batches
+
+
 class GeneralIORayPPOTrainer(ReasonRLRayPPOTrainer):
 
     def __init__(self, past_epoch_window: int = 10, benchmark_reward_fn=None, *args, **kwargs):
@@ -723,7 +948,39 @@ class GeneralIORayPPOTrainer(ReasonRLRayPPOTrainer):
                 print(f"[DEBUG] GeneralIORayPPOTrainer: Set prompt_manager for benchmark_reward_fn")
             
         print(f"[DEBUG] GeneralIORayPPOTrainer: Initialized with prompt manager")
-    
+
+        # --- Gradient analysis ---
+        self.gradient_analysis_enabled = self.config.azr.get('gradient_analysis', {}).get('enabled', False)
+        self.gradient_analysis_freq = self.config.azr.get('gradient_analysis', {}).get('freq', 1)
+        if self.gradient_analysis_enabled:
+            ckpt_dir = self.config.azr.get('gradient_analysis', {}).get(
+                'checkpoint_dir', '/dev/shm/gradient_analysis_ckpt'
+            )
+            self.gradient_analyzer = GradientAnalyzer(
+                checkpoint_dir=ckpt_dir,
+                output_dir=self.config.agent_output_dir,
+                experiment_name=self.config.trainer.experiment_name,
+            )
+            PrettyPrinter.status(
+                "INIT", f"Gradient analysis enabled (freq={self.gradient_analysis_freq})", "info"
+            )
+
+        # --- Alternating training ---
+        self.alternating_training_enabled = self.config.azr.get('alternating_training', {}).get('enabled', False)
+        if self.alternating_training_enabled:
+            role_order = self.config.azr.get('alternating_training', {}).get(
+                'role_order', AlternatingTrainingScheduler.DEFAULT_ROLE_ORDER
+            )
+            steps_per_role = self.config.azr.get('alternating_training', {}).get('steps_per_role', 1)
+            self.alternating_scheduler = AlternatingTrainingScheduler(
+                role_order=role_order, steps_per_role=steps_per_role
+            )
+            PrettyPrinter.status(
+                "INIT",
+                f"Alternating training enabled, role order: {role_order}, steps_per_role: {steps_per_role}",
+                "info",
+            )
+
     def cleanup(self):
         gc.collect()
 
@@ -1458,8 +1715,22 @@ class GeneralIORayPPOTrainer(ReasonRLRayPPOTrainer):
                     if not batches:
                         PrettyPrinter.status("ERROR", "No batches available for training. Skipping this step.", "error")
                         continue
-                    
-                    batch = DataProto.concat(list(batches.values()))
+
+                    # --- Alternating training: select which batches to use for update ---
+                    if self.alternating_training_enabled:
+                        active_role = self.alternating_scheduler.get_active_role(self.global_steps)
+                        update_batches = self.alternating_scheduler.filter_batches_for_update(
+                            batches, self.global_steps
+                        )
+                        PrettyPrinter.status(
+                            "ALTERNATING",
+                            f"Step {self.global_steps}: training role '{active_role}' "
+                            f"(available: {list(batches.keys())})",
+                            "info",
+                        )
+                        batch = DataProto.concat(list(update_batches.values()))
+                    else:
+                        batch = DataProto.concat(list(batches.values()))
 
                     PrettyPrinter.section_header(f"Starting Parameter Updates")
                     # update critic
@@ -1471,6 +1742,24 @@ class GeneralIORayPPOTrainer(ReasonRLRayPPOTrainer):
 
                     # implement critic warmup
                     if self.config.trainer.critic_warmup <= self.global_steps:
+                        # --- Gradient analysis: per-role parameter delta ---
+                        if (self.gradient_analysis_enabled
+                                and self.global_steps % self.gradient_analysis_freq == 0
+                                and len(batches) >= 2):
+                            with _timer('gradient_analysis', timing_raw):
+                                PrettyPrinter.section_header("Gradient Conflict Analysis")
+                                grad_metrics = self.gradient_analyzer.analyze_step(
+                                    actor_rollout_wg=self.actor_rollout_wg,
+                                    batches=batches,
+                                    global_step=self.global_steps,
+                                )
+                                metrics.update(grad_metrics)
+                                for k, v in grad_metrics.items():
+                                    if 'cosine_similarity' in k or 'angle' in k:
+                                        PrettyPrinter.status("GRADIENT", f"{k}: {v:.4f}", "info")
+                            # analyze_step restores original params after each role,
+                            # so we still need the real combined update below.
+
                         with _timer('update_actor', timing_raw):
                             actor_output = self.actor_rollout_wg.update_actor(batch)
                         actor_output_metrics = reduce_metrics(actor_output.meta_info['metrics'])
@@ -1503,16 +1792,37 @@ class GeneralIORayPPOTrainer(ReasonRLRayPPOTrainer):
                             self._save_checkpoint()
 
                 # collect metrics, separate problem types
-                all_types = []
-                if 'general' in self.config.azr.problem_types:
-                    if not self.pretrain_pred:
-                        all_types.append('gen_general')
-                    all_types.append('pred_general')
-                sep_batches = batch.chunk(len(all_types))
-                for sep_batch, problem_type in zip(sep_batches, all_types):
-                    sep_metrics = compute_data_metrics(batch=sep_batch, use_critic=self.use_critic, tokenizer=self.tokenizer)
-                    sep_metrics = {f'{problem_type}/{k}': v for k, v in sep_metrics.items()}
-                    metrics.update(sep_metrics)
+                if self.alternating_training_enabled:
+                    # In alternating mode, batch contains only the active role
+                    all_types = list(update_batches.keys())
+                else:
+                    all_types = []
+                    if 'general' in self.config.azr.problem_types:
+                        if not self.pretrain_pred:
+                            all_types.append('gen_general')
+                        all_types.append('pred_general')
+                if len(all_types) > 0:
+                    sep_batches = batch.chunk(len(all_types)) if len(all_types) > 1 else [batch]
+                    for sep_batch, problem_type in zip(sep_batches, all_types):
+                        sep_metrics = compute_data_metrics(batch=sep_batch, use_critic=self.use_critic, tokenizer=self.tokenizer)
+                        sep_metrics = {f'{problem_type}/{k}': v for k, v in sep_metrics.items()}
+                        metrics.update(sep_metrics)
+
+                    # Log which role was active (for alternating training tracking)
+                    if self.alternating_training_enabled:
+                        metrics['alternating/active_role'] = all_types[0] if all_types else 'none'
+
+                # Also compute per-role metrics from all computed batches (not just updated ones)
+                # so we always have full visibility even in alternating mode
+                if self.alternating_training_enabled and len(batches) > 1:
+                    for role_name, role_batch in batches.items():
+                        if role_name not in all_types:
+                            role_sep_metrics = compute_data_metrics(
+                                batch=role_batch, use_critic=self.use_critic, tokenizer=self.tokenizer
+                            )
+                            role_sep_metrics = {f'{role_name}/{k}': v for k, v in role_sep_metrics.items()}
+                            metrics.update(role_sep_metrics)
+
                 metrics.update(compute_timing_metrics(batch=batch, timing_raw=timing_raw))
 
                 # Get and log type statistics periodically

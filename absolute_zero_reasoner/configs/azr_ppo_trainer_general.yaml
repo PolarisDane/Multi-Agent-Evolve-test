@@ -502,7 +502,22 @@ azr:
   judge_temperature: 0.1
   init_dataset_size: 1000
   with_answer_generation: False
-  
+
+  # Gradient analysis: per-layer param-delta cosine similarity across roles
+  gradient_analysis:
+    enabled: False              # Set True to enable per-role gradient analysis
+    freq: 1                     # Analyze every N steps (higher = less overhead)
+    checkpoint_dir: "/dev/shm/gradient_analysis_ckpt"  # tmpfs for speed; raw JSONL saved to agent_output_dir
+
+  # Alternating training: round-robin role updates
+  alternating_training:
+    enabled: False              # Set True to train one role per step
+    steps_per_role: 1           # How many consecutive steps to train each role before switching
+    role_order:                 # Rotation order (cycles)
+      - pred_general            # solver
+      - gen_general             # proposer
+      - judge_general           # judge
+
   # Benchmark evaluation settings for general tasks
   benchmark_validation_dir: "./validation_datasets"
   benchmark_names:
